@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include "secrets.h"
+#include "config.h"
 #include <Firebase_ESP_Client.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
@@ -8,10 +9,17 @@ FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
 
-#define MOISTURE_SENSOR_PIN_1 33 
 
 unsigned long readDataPrevMillis = 0;
 int moisture_sensor_reading = 0;
+
+// ============ for POC only, needs to be relocated ============
+// Function to calculate percentage
+int calculatePercentage(int rawValue, int min_value, int max_value) {
+  if (rawValue < min_value) rawValue = min_value;
+  if (rawValue > max_value) rawValue = max_value;
+  return 100 - ((rawValue - min_value) * 100 / (max_value - min_value));
+}
 
 void setup()
 {
@@ -56,13 +64,12 @@ void loop()
     readDataPrevMillis = millis();
 
     // Path to the desired location in the database
-    String path = "/gardens/garden1/plants/plant1/calibration";
+    String plant1_calibration_path = plant1_path + "/calibration";
 
     Serial.println("Reading data from Firebase...");
 
     // Read the data from Firebase
-    if (Firebase.RTDB.getJSON(&fbdo, path))
-    {
+    if (Firebase.RTDB.getJSON(&fbdo, plant1_calibration_path)) {
       // Successfully retrieved the data
       FirebaseJson &json = fbdo.jsonObject();
       FirebaseJsonData calibration_state;
@@ -87,7 +94,7 @@ void loop()
               json.add("dry_soil_measurment", moisture_sensor_reading);
               json.add("moisture_calibration_dry", 0);
               // upload data to RTDB
-              Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, path, &json) ? "ok" : fbdo.errorReason().c_str());
+              Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, plant1_calibration_path, &json) ? "ok" : fbdo.errorReason().c_str());
             }
           }
 
@@ -106,22 +113,35 @@ void loop()
               json.add("moisture_calibration_wet", 0);
               json.add("moisture_calibration_mode", 0);
               // upload data to RTDB
-              Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, path, &json) ? "ok" : fbdo.errorReason().c_str());
+              Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, plant1_calibration_path, &json) ? "ok" : fbdo.errorReason().c_str());
             }
           }        
         }
       }
 
-      // print all json data
-      // String jsonStr;
-      // json.toString(jsonStr, true);
-      // Serial.printf("Data: %s\n", jsonStr.c_str());
-    
+      // ============ print moisture normalized measurments ============
+      // ============ for POC only, needs to be relocated ============
+      FirebaseJsonData dry_soil_measurment;
+      FirebaseJsonData wet_soil_measurment;
+      if (json.get(dry_soil_measurment, "dry_soil_measurment")) {
+        if (json.get(wet_soil_measurment, "wet_soil_measurment")) {
+          if ((dry_soil_measurment.intValue != 0) && (wet_soil_measurment.intValue != 0)) {
+            moisture_sensor_reading = analogRead(MOISTURE_SENSOR_PIN_1);
+            Serial.print("moisture_sensor_reading: ");
+            Serial.println(calculatePercentage(moisture_sensor_reading, wet_soil_measurment.intValue, dry_soil_measurment.intValue));
+          }
+        }
+      }
+
+
     }
     else
     {
       // Failed to retrieve data, print error
       Serial.printf("Error: %s\n", fbdo.errorReason().c_str());
     }
+
+
+
   }
 }

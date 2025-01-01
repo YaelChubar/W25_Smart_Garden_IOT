@@ -1,7 +1,7 @@
 /* Connection layout:
- * yellow --> GED
+ * yellow --> GRD
  * red --> D4 (Touch 0) */
-#define WATER_LEVEL_PIN T0
+#define WATER_LEVEL_PIN T3
 #define MIN_VALUE 30
 #define MAX_VALUE 40
 

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include "secrets.h"
+#include "config.h"
 #include <Firebase_ESP_Client.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
@@ -12,7 +13,7 @@ FirebaseAuth auth;
 FirebaseConfig config;
 
 // Pins and Constants
-#define LIGHT_SENSOR_PIN 35
+#define LIGHT_SENSOR_PIN 39
 #define LIGHT_SENSOR_MIN_VALUE 0
 #define LIGHT_SENSOR_MAX_VALUE 1700
 
@@ -112,7 +113,7 @@ void loop() {
     json.add(getCurrentDateTime(), calculatePercentage(light_sensor_reading, LIGHT_SENSOR_MIN_VALUE, LIGHT_SENSOR_MAX_VALUE)); // Add current date and time
 
     // Save data to Firebase under a "history" path
-    String path = "/gardens/garden1/global_info/garden_light_strength";
+    String path = garden_global_info_path + "/garden_light_strength";
     if (Firebase.RTDB.updateNode(&fbdo, path, &json)) {
       Serial.println("Data pushed successfully:");
       Serial.println(fbdo.pushName()); // The unique key for this entry

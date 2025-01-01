@@ -1,57 +1,16 @@
-/* Moisture sensor unit test 
- * Connection layout:
- * GRD --> GRD
- * VCC --> 5V
- * AUOT --> D4 */
-#define MOISTURE_SENSOR_PIN_1 25        // Analog pin connected to the first moisture sensor
-#define MOISTURE_SENSOR_PIN_2 33        // Analog pin connected to the second moisture sensor
-#define MOISTURE_SENSOR_PIN_3 32        // Analog pin connected to the third moisture sensor
-#define MOISTURE_SENSOR_PIN_4 35        // Analog pin connected to the fourth moisture sensor
+#include <WiFi.h>
+#include "secrets.h"
+#include "config.h"
+#include <Firebase_ESP_Client.h>
+#include <addons/TokenHelper.h>
+#include <addons/RTDBHelper.h>
 
- /* Light Sensor UT.
- * Analog (S) --> D26 (needs to be ADC pin)
- * GRD (-) --> GRD
- * V (Mid) --> 3.3 V */
-#define LIGHT_SENSOR_PIN 26
-#define LIGHT_SENSOR_MIN_VALUE 0
-#define LIGHT_SENSOR_MAX_VALUE 1700
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
 
-/* Temprature & Humidity sensor unit test 
- * Connection layout:
- * S --> D34
- * Mid (+) --> 3.3V
- * (-) --> GRD */
-#include <DFRobot_DHT11.h>
-DFRobot_DHT11 DHT;
-#define DHT11_PIN 4
 
-/* Pumps unit test 
- * Connection layout:
- * YYNMOS-4 :
- * DC+ --> 5V+ (power supply)
- * DC- --> GRD- (power supply)
- * PWM1 --> D18 (esp32)
- * GRD1 --> GRD (esp32)
- * OUT1+ --> + (pump)
- * OUT1- --> - (pump)
- */
-#define PUMP_PIN_NO_1 18
-#define PUMP_PIN_NO_2 16
-
-// Connection layout:
-// Brown --> GRD
-// Red --> Vin
-// Orange --> D18
-#include <ESP32Servo.h>
-#define SERVO_PIN 21
-
-/* Connection layout:
- * yellow --> GRD
- * red --> D15 (Touch 3) */
-#define WATER_LEVEL_PIN T3
-#define MIN_VALUE 30
-#define MAX_VALUE 40
-
+unsigned long readDataPrevMillis = 0;
 int sensor_reading = 0;
 int light_sensor_reading;
 int waterTankReadRaw;
@@ -74,6 +33,37 @@ void setup(void) {
   digitalWrite(PUMP_PIN_NO_1, HIGH);
   pinMode(PUMP_PIN_NO_2, OUTPUT);
   digitalWrite(PUMP_PIN_NO_2, HIGH);
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  Serial.printf("Firebase Client v%s\n\n", FIREBASE_CLIENT_VERSION);
+
+  // Assign the API key and database URL
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+
+  // Set user credentials for authentication
+  auth.user.email = USER_EMAIL;
+  auth.user.password = USER_PASSWORD;
+
+  // Set callback function for token status
+  config.token_status_callback = tokenStatusCallback;
+
+  // Initialize Firebase
+  Firebase.begin(&config, &auth);
+
+  // Automatically reconnect Wi-Fi if disconnected
+  Firebase.reconnectWiFi(true);
 }
 
 void loop(void) {
