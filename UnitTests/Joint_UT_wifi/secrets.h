@@ -1,7 +1,7 @@
 
 /* 1. Define the WiFi credentials */
-#define WIFI_SSID "Itiel"
-#define WIFI_PASSWORD "0527828014"
+#define WIFI_SSID "Shahar"
+#define WIFI_PASSWORD "rbJJ0123"
 
 // For the following credentials, see examples/Authentications/SignInAsUser/EmailPassword/EmailPassword.ino
 

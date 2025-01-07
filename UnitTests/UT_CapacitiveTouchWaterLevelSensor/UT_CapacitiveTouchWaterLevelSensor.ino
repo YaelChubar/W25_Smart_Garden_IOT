@@ -2,8 +2,8 @@
  * yellow --> GRD
  * red --> D4 (Touch 0) */
 #define WATER_LEVEL_PIN T3
-#define MIN_VALUE 30
-#define MAX_VALUE 40
+#define MIN_VALUE 7
+#define MAX_VALUE 33
 
 
 // Function to calculate the percentage based on min and max values

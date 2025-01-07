@@ -4,11 +4,13 @@
 #include <Firebase_ESP_Client.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
+#include <Adafruit_NeoPixel.h>
 
+
+// Global variables
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
-
 
 unsigned long readDataPrevMillis = 0;
 int sensor_reading = 0;
@@ -16,6 +18,7 @@ int light_sensor_reading;
 int waterTankReadRaw;
 Servo myServo;
 
+Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 
 // Function to calculate the percentage based on min and max values
 int calculatePercentage(int rawValue) {
@@ -33,6 +36,14 @@ void setup(void) {
   digitalWrite(PUMP_PIN_NO_1, HIGH);
   pinMode(PUMP_PIN_NO_2, OUTPUT);
   digitalWrite(PUMP_PIN_NO_2, HIGH);
+  pinMode(PUMP_PIN_NO_3, OUTPUT);
+  digitalWrite(PUMP_PIN_NO_3, HIGH);
+  pinMode(PUMP_PIN_NO_4, OUTPUT);
+  digitalWrite(PUMP_PIN_NO_4, HIGH);
+
+  // INITIALIZE NeoPixel strip object (REQUIRED)
+  pixels.begin(); 
+
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
@@ -64,6 +75,7 @@ void setup(void) {
 
   // Automatically reconnect Wi-Fi if disconnected
   Firebase.reconnectWiFi(true);
+
 }
 
 void loop(void) {
@@ -97,6 +109,16 @@ void loop(void) {
   Serial.print(waterTankRead);
   Serial.println("%");
 
+  pixels.clear(); // Set all pixel colors to 'off'
+  for(int i=0; i<NUMPIXELS; i++) { // For each pixel...
+
+    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    // Here we're using a moderately bright green color:
+    pixels.setPixelColor(i, pixels.Color(255, 255, 255));
+
+    pixels.show();   // Send the updated pixel colors to the hardware.
+  }
+
   //if (Serial.available()) {
     //int angle = Serial.parseInt();
     myServo.write(10);
@@ -112,8 +134,14 @@ void loop(void) {
   //testing one pump at a time
   digitalWrite(PUMP_PIN_NO_1, LOW);
   digitalWrite(PUMP_PIN_NO_2, LOW);
+  digitalWrite(PUMP_PIN_NO_3, LOW);
+  digitalWrite(PUMP_PIN_NO_4, LOW);
   delay(1000);
   digitalWrite(PUMP_PIN_NO_1, HIGH);
   digitalWrite(PUMP_PIN_NO_2, HIGH);
+  digitalWrite(PUMP_PIN_NO_3, HIGH);
+  digitalWrite(PUMP_PIN_NO_4, HIGH);
   delay(1000);
+
+  
 }

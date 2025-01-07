@@ -1,7 +1,9 @@
+#ifndef SECRETS_H_
+#define SECRETS_H_
 
 /* 1. Define the WiFi credentials */
-#define WIFI_SSID "TechPublic"
-#define WIFI_PASSWORD ""
+#define WIFI_SSID "Shahar"
+#define WIFI_PASSWORD "rbJJ0123"
 
 // For the following credentials, see examples/Authentications/SignInAsUser/EmailPassword/EmailPassword.ino
 
@@ -14,3 +16,5 @@
 /* 4. Define the user Email and password that alreadey registerd or added in your project */
 #define USER_EMAIL "shaharkad31@gmail.com" 
 #define USER_PASSWORD "shahar123"
+
+#endif

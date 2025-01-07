@@ -1,3 +1,12 @@
+#ifndef CCONFIG_H_
+#define CCONFIG_H_
+
+#include <WiFi.h>
+#include <WiFiManager.h>
+#include <Firebase_ESP_Client.h>
+#include <addons/TokenHelper.h>
+#include <addons/RTDBHelper.h>
+#include <Adafruit_NeoPixel.h>
 // ESP hard coded definitions
 #define ESP_ID 1001
 
@@ -65,11 +74,18 @@ DFRobot_DHT11 DHT;
 #define LEDS_PIN        12 
 #define NUMPIXELS 30 // Popular NeoPixel ring size
 
+extern WiFiManager wifiManager;
+extern FirebaseData fbdo;
+extern FirebaseAuth auth;
+extern FirebaseConfig config;
+
 
 // Firebase relevant paths
-extern String garden_path = "/gardens/garden_1001";
-extern String garden_global_info_path = "/gardens/garden_1001/global_info";
+extern String garden_path = "/gardens/garden_" + String(ESP_ID);
+extern String garden_global_info_path = "/gardens/garden_" + String(ESP_ID) + "/global_info";
 extern String plant1_path = "/gardens/garden_" + String(ESP_ID) + "/plants/plant1";
-extern String plant2_path = "/gardens/garden_1001/plants/plant2";
-extern String plant3_path = "/gardens/garden_1001/plants/plant3";
-extern String plant4_path = "/gardens/garden_1001/plants/plant4";
+extern String plant2_path = "/gardens/garden_" + String(ESP_ID) + "/plants/plant2";
+extern String plant3_path = "/gardens/garden_" + String(ESP_ID) + "/plants/plant3";
+extern String plant4_path = "/gardens/garden_" + String(ESP_ID) + "/plants/plant4";
+
+#endif

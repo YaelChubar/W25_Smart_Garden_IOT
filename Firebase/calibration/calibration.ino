@@ -18,7 +18,7 @@ int moisture_sensor_reading = 0;
 int calculatePercentage(int rawValue, int min_value, int max_value) {
   if (rawValue < min_value) rawValue = min_value;
   if (rawValue > max_value) rawValue = max_value;
-  return 100 - ((rawValue - min_value) * 100 / (max_value - min_value));
+  return (((rawValue - min_value) * 100) / (max_value - min_value));
 }
 
 void setup()
@@ -125,10 +125,12 @@ void loop()
       FirebaseJsonData wet_soil_measurment;
       if (json.get(dry_soil_measurment, "dry_soil_measurment")) {
         if (json.get(wet_soil_measurment, "wet_soil_measurment")) {
-          if ((dry_soil_measurment.intValue != 0) && (wet_soil_measurment.intValue != 0)) {
+          if ((dry_soil_measurment.intValue != 0) && (wet_soil_measurment.intValue != 0) && (wet_soil_measurment.intValue < dry_soil_measurment.intValue)) {
             moisture_sensor_reading = analogRead(MOISTURE_SENSOR_PIN_1);
-            Serial.print("moisture_sensor_reading: ");
+            Serial.print("normalized moisture_sensor_reading after calibration: ");
             Serial.println(calculatePercentage(moisture_sensor_reading, wet_soil_measurment.intValue, dry_soil_measurment.intValue));
+          //} else {
+            //Serial.print("normalized moisture_sensor_reading after calibration failed! check soil measurments! ");
           }
         }
       }
