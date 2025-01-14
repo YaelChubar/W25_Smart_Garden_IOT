@@ -38,15 +38,15 @@ void initial_wifi_setup() {
   wifiManager.resetSettings();
 
   // Start the Wi-Fi configuration portal in Access Point (AP) mode
-  Serial.println("Starting Wi-Fi configuration portal...");
+  Serial.println("Starting Wi-Fi configuration portal...\n");
   if (!wifiManager.startConfigPortal("SmartGarden-Setup")) {
-    Serial.println("Failed to connect and hit timeout");
+    Serial.println("Failed to connect and hit timeout\n");
     ESP.restart();  // Restart ESP32 if it fails to connect
   }
 
   // Once connected, print the assigned IP address
-  Serial.println("Wi-Fi connected!");
-  Serial.print("IP Address: ");
+  Serial.println("Wi-Fi connected!\n");
+  Serial.print("IP Address: \n");
   Serial.println(WiFi.localIP());
 }
 
@@ -124,13 +124,13 @@ void check_calibration(int plant_id) {
       moisture_pin = MOISTURE_SENSOR_PIN_4;
       break;
     default:
-      Serial.print("Invalid plant_id! ");
+      Serial.print("Invalid plant_id! \n");
       return;
   }
   
   String plant_calibration_path = garden_path + "/plants/plant" + String(plant_id)+ "/calibration";
   int moisture_sensor_reading = 0;
-  
+
   if (Firebase.RTDB.getJSON(&fbdo, plant_calibration_path)) {
     FirebaseJson &json = fbdo.jsonObject();
     FirebaseJsonData calibration_state;
@@ -143,10 +143,10 @@ void check_calibration(int plant_id) {
       unsigned long calibrationStartTime = millis(); 
       while (calibration_state.intValue == 1) {
         delay(2000);
-        Serial.print("starting calibration:");
+        Serial.print("starting calibration\n");
 
         // dry soil calibration
-        Serial.print("entered dry calibration process");
+        Serial.print("entered dry calibration process\n");
         if (json.get(moisture_calibration_dry, "moisture_calibration_dry")) {
           Serial.print("moisture_calibration_dry: ");
           Serial.println(moisture_calibration_dry.intValue);
@@ -168,7 +168,7 @@ void check_calibration(int plant_id) {
           Serial.println(moisture_calibration_wet.intValue);
           if (moisture_calibration_wet.intValue == 1) {
             
-            Serial.print("entered wet calibration process");
+            Serial.print("entered wet calibration process\n");
             // measure dry soil
             moisture_sensor_reading = analogRead(moisture_pin);
             Serial.print("moisture sensor in wet soil: ");
@@ -181,18 +181,39 @@ void check_calibration(int plant_id) {
           }
         }
 
+        Firebase.RTDB.getJSON(&fbdo, plant_calibration_path);
+        json = fbdo.jsonObject();
+        json.get(calibration_state, "moisture_calibration_mode");
+
         // Check if the 5 minutes timeout has been exceeded
-        if (millis() - calibrationStartTime > 300000) {
-            Serial.println("Calibration timed out!");
+        if (millis() - calibrationStartTime > 30000) {
+            Serial.println("Calibration timed out!\n");
+            // change all variables in firebase back to initial value (0)
+            json.add("dry_soil_measurment", 0);
+            json.add("moisture_calibration_dry", 0);
+            json.add("wet_soil_measurment", 0);
+            json.add("moisture_calibration_wet", 0);
+            json.add("moisture_calibration_mode", 0);
+            // upload data to RTDB
+            Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, plant_calibration_path, &json) ? "ok" : fbdo.errorReason().c_str());
             break; // Exit the loop after timeout
         }
       }
 
-      Serial.print("existed calibration while loop");
+      Serial.print("existed calibration while loop\n");
 
+    } else {
+      // Failed to retrieve data, print error
+      Serial.printf("Error getting calibration mode: %s , current plant id = %d\n", fbdo.errorReason().c_str(), plant_id);
+      return;
     }
 
+  } else {
+      // Failed to retrieve data, print error
+      Serial.printf("Error getting calibration directory: %s , current plant id = %d\n", fbdo.errorReason().c_str(), plant_id);
+      return;
   }
+  
 }
 
 // void get_existing_plants() {
