@@ -1,5 +1,5 @@
-#ifndef CCONFIG_H_
-#define CCONFIG_H_
+#ifndef CONFIG_H_
+#define CONFIG_H_
 
 #include <WiFi.h>
 #include <WiFiManager.h>
@@ -73,11 +73,6 @@ DFRobot_DHT11 DHT;
 // Din --> D12
 #define LEDS_PIN        12 
 #define NUMPIXELS 30 // Popular NeoPixel ring size
-
-extern WiFiManager wifiManager;
-extern FirebaseData fbdo;
-extern FirebaseAuth auth;
-extern FirebaseConfig config;
 
 
 // Firebase relevant paths
