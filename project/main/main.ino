@@ -20,10 +20,13 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 // Functions
 void initial_wifi_setup();
 void firebase_setup();
+void components_setup();
 int get_moisture_sensor_pin_by_id(int plant_id);
+int get_plant_pump_pin_by_id(int plant_id);
 void check_calibration_mode(int plant_id);
 bool is_plant_ready(int plant_id);
 void water_plant(int plant_id);
+int calculatePercentage(int rawValue, int min_value, int max_value);
 //void get_existing_plants();
 
 void setup() {
@@ -32,6 +35,8 @@ void setup() {
   initial_wifi_setup();
 
   firebase_setup();
+
+  components_setup();
   
 }
 
@@ -74,6 +79,18 @@ void firebase_setup() {
   Firebase.reconnectWiFi(true);
 }
 
+//setup pumps, leds and servo
+void components_setup() {
+  pinMode(PUMP_PIN_NO_1, OUTPUT);
+  digitalWrite(PUMP_PIN_NO_1, LOW);
+  pinMode(PUMP_PIN_NO_2, OUTPUT);
+  digitalWrite(PUMP_PIN_NO_2, LOW);
+  pinMode(PUMP_PIN_NO_3, OUTPUT);
+  digitalWrite(PUMP_PIN_NO_3, LOW);
+  pinMode(PUMP_PIN_NO_4, OUTPUT);
+  digitalWrite(PUMP_PIN_NO_4, LOW);
+}
+
 void loop() {
   if (Firebase.ready() && (millis() - readDataPrevMillis > 15000 || readDataPrevMillis == 0))
   {
@@ -88,6 +105,7 @@ void loop() {
         check_calibration_mode(i);
         // if not in calibration mode, check if ready
         if (!is_plant_ready(i)) {
+          Serial.printf("Skipping plant %d as it is not ready.\n", i);
           continue;
         }
         // check moisture and water if needed
@@ -104,7 +122,7 @@ void loop() {
     } else {
       //TODO: add indication that garden was not found in firebase
       // OPTIONAL: red light indicator on esp OR error indication in firebase
-
+      Serial.println("Error: Garden data not found in Firebase.");
     }
 
 
@@ -123,6 +141,23 @@ int get_moisture_sensor_pin_by_id(int plant_id) {
       return MOISTURE_SENSOR_PIN_3;
     case 4:
       return MOISTURE_SENSOR_PIN_4;
+    default:
+      Serial.print("Invalid plant_id! \n");
+      return -1;
+  }
+  return -1;
+}
+
+int get_plant_pump_pin_by_id(int plant_id) {
+  switch (plant_id) {
+    case 1:
+      return PUMP_PIN_NO_1;
+    case 2:
+      return PUMP_PIN_NO_2;
+    case 3:
+      return PUMP_PIN_NO_3;
+    case 4:
+      return PUMP_PIN_NO_4;
     default:
       Serial.print("Invalid plant_id! \n");
       return -1;
@@ -224,24 +259,26 @@ bool is_plant_ready(int plant_id) {
   String plant_path = garden_path + "/plants/plant" + String(plant_id);
   if (Firebase.RTDB.getJSON(&fbdo, plant_path)) {
     FirebaseJson &json = fbdo.jsonObject();
-    FirebaseJsonData is_plant_ready;
+    FirebaseJsonData plant_calibrated;
     
-    if (json.get(is_plant_ready, "is_plant_ready")) { 
-      if(is_plant_ready.intValue == 1) {
+    if (json.get(plant_calibrated, "plant_calibrated")) { 
+      if(plant_calibrated.intValue == 1) {
         Serial.printf("plant %d is ready\n", plant_id);
         return true;
       } else {
         Serial.printf("plant %d is NOT ready\n", plant_id);
         return false;
       }
+    } else {
+      Serial.printf("Error getting plant_calibrated field for plant %d\n", plant_id);
     }
   } else {
     // TODO: add error indication in firebase
     Serial.printf("Error getting plant %d directory: %s\n", plant_id, fbdo.errorReason().c_str());
   }
+  Serial.println("Returning false, end of is_plant_ready func\n");
   return false;
 }
-
 
 /* 
 Flow: 
@@ -256,10 +293,13 @@ void water_plant(int plant_id) {
   String plant_path = garden_path + "/plants/plant" + String(plant_id);
   String plant_calibration_path = garden_path + "/plants/plant" + String(plant_id)+ "/calibration";
   int moisture_pin = get_moisture_sensor_pin_by_id(plant_id);
+  int pump_pin = get_plant_pump_pin_by_id(plant_id);
   int dry_soil_val = 0;
   int wet_soil_val = 0;
   int soil_moisture_level_val = 0;
   int moisture_sensor_reading = 0;
+  int normalized_moisture_val = 0;
+  
 
   // Read moisture calibration dry and wet values
   if (Firebase.RTDB.getJSON(&fbdo, plant_calibration_path)) {
@@ -301,10 +341,13 @@ void water_plant(int plant_id) {
       switch (soil_moisture_level.intValue) {
         case 1:
           soil_moisture_level_val = 10;
+          break;
         case 2:
           soil_moisture_level_val = 30;
+          break;
         case 3:
           soil_moisture_level_val = 50;
+          break;
         default:
           Serial.printf("Invalid soil moisture val for plant %d: %s\n", plant_id, fbdo.errorReason().c_str());
           return;
@@ -319,11 +362,37 @@ void water_plant(int plant_id) {
     return;
   }
 
+  // preform sensor reading
+  moisture_sensor_reading = analogRead(moisture_pin);
+  Serial.print("moisture sensor in dry soil: ");
+  Serial.println(moisture_sensor_reading);
+  // calculat and print normalized value
+  normalized_moisture_val = calculatePercentage(moisture_sensor_reading, wet_soil_val, dry_soil_val);
+  if (normalized_moisture_val == -1) {
+    Serial.printf("Invalid normalized val: wet soil val == dry soil val! %s\n", plant_id, fbdo.errorReason().c_str());
+    return;
+  }
+  Serial.print("normalized moisture_sensor_reading: ");
+  Serial.println(normalized_moisture_val);
 
+
+  // If value is lower than the one set in soil moisture level, pump water for 5 seconds
+  if (normalized_moisture_val <= soil_moisture_level_val) {
+    digitalWrite(pump_pin, HIGH);
+    delay(5000);
+    digitalWrite(pump_pin, LOW);
+  }
 }
 
 
-
+int calculatePercentage(int rawValue, int min_value, int max_value) {
+  if (min_value == max_value) {
+    return -1;
+  }
+  if (rawValue < min_value) rawValue = min_value;
+  if (rawValue > max_value) rawValue = max_value;
+  return (((rawValue - min_value) * 100) / (max_value - min_value));
+}
 
 
 
