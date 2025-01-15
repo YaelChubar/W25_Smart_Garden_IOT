@@ -6,14 +6,11 @@ WiFiManager wifiManager;
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
-
 int plants_num;
-int existing_plants[4] = {0};
 unsigned long readDataPrevMillis = 0;
-int sensor_reading = 0;
-int light_sensor_reading;
-int waterTankReadRaw;
 Servo myServo;
+DFRobot_DHT11 DHT;
+// int existing_plants[4] = {0};
 
 Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -21,12 +18,17 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 void initial_wifi_setup();
 void firebase_setup();
 void components_setup();
+void configureTime();
+String getCurrentDateTime();
 int get_moisture_sensor_pin_by_id(int plant_id);
 int get_plant_pump_pin_by_id(int plant_id);
 void check_calibration_mode(int plant_id);
 bool is_plant_ready(int plant_id);
 void water_plant(int plant_id);
 int calculatePercentage(int rawValue, int min_value, int max_value);
+void measure_DHT_values();
+void measure_water_level_value();
+//void measure_light_value_handle_lid();
 //void get_existing_plants();
 
 void setup() {
@@ -37,7 +39,9 @@ void setup() {
   firebase_setup();
 
   components_setup();
-  
+
+  // Configure NTP for time synchronization
+  configureTime();
 }
 
 // Initial setup:
@@ -91,19 +95,62 @@ void components_setup() {
   digitalWrite(PUMP_PIN_NO_4, LOW);
 }
 
+// Function to configure NTP and get current time
+void configureTime() {
+  configTime(7200, 0, "pool.ntp.org", "time.nist.gov"); // UTC+2 for Israel
+  setenv("TZ", "IST-2IDT,M3.4.4/2,M10.5.0/2", 1); // Israel timezone (IDT/DST rules)
+  struct tm timeInfo;
+  const int timeoutMs = 10000; // 10 seconds timeout
+  unsigned long startAttemptTime = millis();
+
+  while (!getLocalTime(&timeInfo) && (millis() - startAttemptTime) < timeoutMs) {
+    Serial.println("Waiting for NTP sync...");
+    delay(500);
+  }
+
+  if (!getLocalTime(&timeInfo)) {
+    Serial.println("Failed to obtain time");
+  } else {
+    Serial.println("Time synchronized successfully");
+  }
+}
+
+// Function to get the current date and time as a string
+String getCurrentDateTime() {
+    struct tm timeInfo;
+  const int timeoutMs = 10000; // 10 seconds timeout
+  unsigned long startAttemptTime = millis();
+
+  while (!getLocalTime(&timeInfo) && (millis() - startAttemptTime) < timeoutMs) {
+    Serial.println("Waiting for NTP sync...");
+    delay(500);
+  }
+
+  if (!getLocalTime(&timeInfo)) {
+    Serial.println("Failed to obtain time");
+  } else {
+    Serial.println("Time synchronized successfully");
+  }
+  
+  if (getLocalTime(&timeInfo)) {
+    char buffer[30];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
+    return String(buffer);
+  }
+  return "1970-01-01 00:00:00"; // Fallback in case of error
+}
+
 void loop() {
   if (Firebase.ready() && (millis() - readDataPrevMillis > 15000 || readDataPrevMillis == 0))
   {
     readDataPrevMillis = millis();
 
     if (Firebase.RTDB.getJSON(&fbdo, garden_path)) {
+      // per plant logic
       for (int i = 1; i < 5; i++) {
-        //for each plant, check:        
-        // 1. Calibration mode
-        // 2. Is ready
-        // 3. Moisture sensor
+        // check if plant is in calibration mode
         check_calibration_mode(i);
-        // if not in calibration mode, check if ready
+        // if not in calibration mode, check if already calibrated
         if (!is_plant_ready(i)) {
           Serial.printf("Skipping plant %d as it is not ready.\n", i);
           continue;
@@ -112,9 +159,14 @@ void loop() {
         water_plant(i);
       }
       
-      // Garden exists in firebase
-      // Check existing plants
-      //get_existing_plants();
+      // garden global info logic
+      // TODO: DHT - measure and upload data (temp & humi)
+      //       water level - measure and upload
+      //       light sensor - measure, upload data and close lid if garden needs_direct_sun is 0
+      //       timestamp handshake - upload (overwrite previous value)
+      measure_DHT_values();
+      measure_water_level_value();
+      //measure_light_value_handle_lid();
 
 
       
@@ -128,6 +180,8 @@ void loop() {
 
 
   }
+  // Delay main loop for 1 minute
+  // delay(60000);
 
 }
 
@@ -292,6 +346,8 @@ Flow:
 void water_plant(int plant_id) {
   String plant_path = garden_path + "/plants/plant" + String(plant_id);
   String plant_calibration_path = garden_path + "/plants/plant" + String(plant_id)+ "/calibration";
+  String plant_moisture_sesnor_path = garden_path + "/plants/plant" + String(plant_id)+ "/moisture_sensor";
+  String plant_irrigation_time_path = garden_path + "/plants/plant" + String(plant_id)+ "/irrigation_time";
   int moisture_pin = get_moisture_sensor_pin_by_id(plant_id);
   int pump_pin = get_plant_pump_pin_by_id(plant_id);
   int dry_soil_val = 0;
@@ -374,13 +430,32 @@ void water_plant(int plant_id) {
   }
   Serial.print("normalized moisture_sensor_reading: ");
   Serial.println(normalized_moisture_val);
-
+  
+  //Upload measured moisture val to Firebase
+  FirebaseJson json_normalized_moisture;
+  json_normalized_moisture.add(getCurrentDateTime(), normalized_moisture_val);
+  if (Firebase.RTDB.updateNode(&fbdo, plant_moisture_sesnor_path, &json_normalized_moisture)) {
+    Serial.println("Normalized_moisture_val pushed successfully:");
+    Serial.println(fbdo.pushName()); // The unique key for this entry
+  } else {
+    Serial.printf("Failed to push Normalized_moisture_val: %s\n", fbdo.errorReason().c_str());
+  }
 
   // If value is lower than the one set in soil moisture level, pump water for 5 seconds
   if (normalized_moisture_val <= soil_moisture_level_val) {
     digitalWrite(pump_pin, HIGH);
     delay(5000);
     digitalWrite(pump_pin, LOW);
+
+    //Upload irrigation time to Firebase
+    FirebaseJson json_irrigation_time;
+    json_irrigation_time.add(getCurrentDateTime(), 5000);
+    if (Firebase.RTDB.updateNode(&fbdo, plant_irrigation_time_path, &json_irrigation_time)) {
+      Serial.println("plant_irrigation_time pushed successfully:");
+      Serial.println(fbdo.pushName()); // The unique key for this entry
+    } else {
+      Serial.printf("Failed to push plant_irrigation_time_path: %s\n", fbdo.errorReason().c_str());
+    }
   }
 }
 
@@ -394,9 +469,52 @@ int calculatePercentage(int rawValue, int min_value, int max_value) {
   return (((rawValue - min_value) * 100) / (max_value - min_value));
 }
 
+void measure_DHT_values() {
+  String garden_temprature_path = garden_global_info_path + "/garden_temprature";
+  String garden_humidity_path = garden_global_info_path + "/garden_humidity";
+  FirebaseJson json_DHT;
+  
+  // read temp & humi values
+  DHT.read(DHT11_PIN);
+  Serial.print("temp:");
+  Serial.print(DHT.temperature);
+  Serial.print("  humi:");
+  Serial.println(DHT.humidity);
 
+  // upload data to firebase
+  json_DHT.add(getCurrentDateTime(), DHT.temperature);
+  if (Firebase.RTDB.updateNode(&fbdo, garden_temprature_path, &json_DHT)) {
+    Serial.println("garden_temprature_val pushed successfully:");
+    Serial.println(fbdo.pushName()); // The unique key for this entry
+  } else {
+    Serial.printf("Failed to push garden_temprature_val: %s\n", fbdo.errorReason().c_str());
+  }
 
+  json_DHT.add(getCurrentDateTime(), DHT.humidity);
+  if (Firebase.RTDB.updateNode(&fbdo, garden_humidity_path, &json_DHT)) {
+    Serial.println("garden_humidity_val pushed successfully:");
+    Serial.println(fbdo.pushName()); // The unique key for this entry
+  } else {
+    Serial.printf("Failed to push garden_humidity_val: %s\n", fbdo.errorReason().c_str());
+  }
+}
 
+void measure_water_level_value() {
+  // measure water level
+  int water_tank_read_raw = touchRead(WATER_LEVEL_PIN);
+  int normalized_water_tank_read = calculatePercentage(water_tank_read_raw, WATER_LEVEL_MIN_VALUE, WATER_LEVEL_MAX_VALUE);
+
+  //upload data
+  String garden_water_level_path = garden_global_info_path + "/water_level";
+  FirebaseJson json_water_level;
+  json_water_level.add(getCurrentDateTime(), normalized_water_tank_read);
+  if (Firebase.RTDB.updateNode(&fbdo, garden_water_level_path, &json_water_level)) {
+    Serial.println("normalized_water_tank_read pushed successfully:");
+    Serial.println(fbdo.pushName()); // The unique key for this entry
+  } else {
+    Serial.printf("Failed to push normalized_water_tank_read: %s\n", fbdo.errorReason().c_str());
+  }
+}
 
 // void get_existing_plants() {
 //   for (int i = 0; i < 4; i++) {

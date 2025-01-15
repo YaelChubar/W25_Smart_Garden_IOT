@@ -7,6 +7,8 @@
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
 #include <Adafruit_NeoPixel.h>
+#include <time.h>
+#include <DFRobot_DHT11.h>
 // ESP hard coded definitions
 #define ESP_ID 1001
 
@@ -34,8 +36,6 @@
  * S --> D34
  * Mid (+) --> 3.3V
  * (-) --> GRD */
-#include <DFRobot_DHT11.h>
-DFRobot_DHT11 DHT;
 #define DHT11_PIN 4
 
 /* Pumps unit test 
@@ -64,8 +64,8 @@ DFRobot_DHT11 DHT;
  * yellow --> GRD
  * red --> D15 (Touch 3) */
 #define WATER_LEVEL_PIN T3
-#define MIN_VALUE 30
-#define MAX_VALUE 40
+#define WATER_LEVEL_MIN_VALUE 30
+#define WATER_LEVEL_MAX_VALUE 40
 
 // Leds Connection layout:
 // RGD --> GRD
