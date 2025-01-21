@@ -76,11 +76,11 @@
 
 
 // Firebase relevant paths
-extern String garden_path = "/gardens/garden_" + String(ESP_ID);
-extern String garden_global_info_path = "/gardens/garden_" + String(ESP_ID) + "/global_info";
-extern String plant1_path = "/gardens/garden_" + String(ESP_ID) + "/plants/plant1";
-extern String plant2_path = "/gardens/garden_" + String(ESP_ID) + "/plants/plant2";
-extern String plant3_path = "/gardens/garden_" + String(ESP_ID) + "/plants/plant3";
-extern String plant4_path = "/gardens/garden_" + String(ESP_ID) + "/plants/plant4";
+extern String garden_path = "/gardens/" + String(ESP_ID);
+extern String garden_global_info_path = "/gardens/" + String(ESP_ID) + "/global_info";
+extern String plant1_path = "/gardens/" + String(ESP_ID) + "/plants/plant1";
+extern String plant2_path = "/gardens/" + String(ESP_ID) + "/plants/plant2";
+extern String plant3_path = "/gardens/" + String(ESP_ID) + "/plants/plant3";
+extern String plant4_path = "/gardens/" + String(ESP_ID) + "/plants/plant4";
 
 #endif
