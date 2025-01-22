@@ -59,6 +59,8 @@
 // Orange --> D21
 #include <ESP32Servo.h>
 #define SERVO_PIN 21
+#define SERVO_LID_CLOSED 0
+#define SERVO_LID_OPEN 90
 
 /* Connection layout:
  * yellow --> GRD
@@ -93,6 +95,7 @@
 #define WET_SOIL_DEFAULT  2095
 #define NEEDS_DIRECT_SUN_DEFAULT  0
 #define LEDS_ON_DEFAULT 0
+#define MANUAL_MODE_DEFAULT 0
 
 
 // Firebase relevant paths

@@ -1,5 +1,6 @@
 #include "secrets.h"
 #include "config.h"
+#include "functions.h"
 
 // Global variables
 WiFiManager wifiManager;
@@ -14,27 +15,6 @@ bool wifi_connected;
 // int existing_plants[4] = {0};
 
 Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
-
-// Functions
-void initial_wifi_setup();
-void firebase_setup();
-void components_setup();
-void configureTime();
-String getCurrentDateTime();
-int get_moisture_sensor_pin_by_id(int plant_id);
-int get_plant_pump_pin_by_id(int plant_id);
-bool is_manual_mode();
-void check_calibration_mode(int plant_id);
-bool is_plant_ready(int plant_id);
-void water_plant(int plant_id);
-int calculatePercentage(int rawValue, int min_value, int max_value);
-void measure_DHT_values();
-int get_normalized_water_level();
-void measure_water_level_value();
-int measure_light_value();
-void upload_handshake();
-void handle_lid_auto(int light_measurement);
-//void get_existing_plants();
 
 void setup() {
   Serial.begin(115200);
@@ -93,6 +73,7 @@ void firebase_setup() {
 
 //setup pumps, leds and servo
 void components_setup() {
+  myServo.attach(SERVO_PIN);
   pinMode(PUMP_PIN_NO_1, OUTPUT);
   digitalWrite(PUMP_PIN_NO_1, LOW);
   pinMode(PUMP_PIN_NO_2, OUTPUT);
@@ -158,7 +139,8 @@ void loop() {
       // per plant logic
       if (is_manual_mode()) {
         Serial.printf("Manual mode on\n");
-
+        handle_manual_mode();
+      
       } else { // automatic mode
         for (int i = 1; i < 5; i++) {
           // check if plant is in calibration mode
@@ -173,20 +155,14 @@ void loop() {
             water_plant(i);
           }
         }
-      
-        // garden global info logic
-        // TODO: DHT - measure and upload data (temp & humi)
-        //       water level - measure and upload
-        //       light sensor - measure, upload data and close lid if garden needs_direct_sun is 0
-        //       timestamp handshake - upload (overwrite previous value)
-        measure_DHT_values();
-        measure_water_level_value();
+
         handle_lid_auto(measure_light_value());
-        upload_handshake();
       }
-
-
       
+      // both manual & auto
+      measure_water_level_value();
+      measure_DHT_values();
+      upload_handshake();
       
     } else { //get garden path failed
       //TODO: add indication that garden was not found in firebase
@@ -234,22 +210,6 @@ int get_plant_pump_pin_by_id(int plant_id) {
       return -1;
   }
   return -1;
-}
-
-bool is_manual_mode() {
-  if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
-    FirebaseJson &json = fbdo.jsonObject();
-    FirebaseJsonData manual_mode_val;
-    if (json.get(manual_mode_val, "manual_mode")) {
-      int manual = manual_mode_val.intValue;
-      return manual ? true : false;
-    } else {
-      Serial.printf("Failed reading manual_mode_val: %s\n", fbdo.errorReason().c_str());
-    }
-  } else {
-    Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
-  }
-  return false;
 }
 
 void check_calibration_mode(int plant_id) {
@@ -577,23 +537,41 @@ void upload_handshake() {
   }
 }
 
-void handle_lid_auto(int light_measurement) {
-  /* 1.if manual mode
+void handle_manual_mode() {
+  /* Lid: 
+  1.if manual mode
         lid_open == 1 --> open lid
         lid open == 0 --> close lid
-        return
-
-     2. if led_on --> close_lid
-        return
-     else
-        automatically according to light strength
-        - if light > 70 && needs_direct_sun==0 --> close lid
-          update firebase
-        - if light <= 70 && needs_direct_sun ==1 --> open lid
-          update firebase
+        
   */
-  bool leds_on = get_leds_status();
+}
 
+/* 
+if led_on --> close_lid
+   return
+else
+   automatically according to light strength
+   - if light > 70 && needs_direct_sun==0 --> close lid
+     update firebase
+   - if light <= 70 && needs_direct_sun ==1 --> open lid
+     update firebase
+*/
+void handle_lid_auto(int light_measurement) {
+  bool leds_on = get_leds_status();
+  if (leds_on) {
+    myServo.write(SERVO_LID_CLOSED);
+    update_lid_status_firebase(0);
+    return;
+  }
+
+  bool needs_direct_sun = get_needs_direct_sun();
+  if (light_measurement > LID_LIGHT_THRESHOLD && !needs_direct_sun) {
+    myServo.write(SERVO_LID_CLOSED);
+    update_lid_status_firebase(0);
+  } else if (light_measurement <= LID_LIGHT_THRESHOLD && needs_direct_sun) {
+    myServo.write(SERVO_LID_OPEN);
+    update_lid_status_firebase(1);
+  }
 }
 
 bool get_leds_status() {
@@ -612,7 +590,60 @@ bool get_leds_status() {
       Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
     }
   } else { //no wifi connection / firebase disconnected
-    return LEDS_ON_DEFAULT ? true : false;
+    return LEDS_ON_DEFAULT;
+  }
+}
+
+bool get_needs_direct_sun() {
+  if (wifi_connected && Firebase.ready()) {
+    // get_status_from_firebase
+    if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
+      FirebaseJson &json = fbdo.jsonObject();
+      FirebaseJsonData needs_direct_sun;
+      if (json.get(needs_direct_sun, "needs_direct_sun")) {
+        int needs_direct_sun_val = needs_direct_sun.intValue;
+        return needs_direct_sun_val ? true : false;
+      } else {
+        Serial.printf("Failed reading needs_direct_sun_val: %s\n", fbdo.errorReason().c_str());
+      }
+    } else {
+      Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
+    }
+  } else { //no wifi connection / firebase disconnected
+    return NEEDS_DIRECT_SUN_DEFAULT;
+  }
+}
+
+bool is_manual_mode() {
+  if (wifi_connected && Firebase.ready()) {
+    // get_status_from_firebase
+    if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
+      FirebaseJson &json = fbdo.jsonObject();
+      FirebaseJsonData manual_mode;
+      if (json.get(manual_mode, "manual_mode")) {
+        int manual_mode_val = manual_mode.intValue;
+        return manual_mode_val ? true : false;
+      } else {
+        Serial.printf("Failed reading manual_mode_val: %s\n", fbdo.errorReason().c_str());
+      }
+    } else {
+      Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
+    }
+  } else { //no wifi connection / firebase disconnected
+    return MANUAL_MODE_DEFAULT;
+  }
+}
+
+void update_lid_status_firebase(int lid_mode) {
+  // check if path exists
+  if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
+    FirebaseJson &json = fbdo.jsonObject();
+    //upload data
+    json.add("lid_open", lid_mode);
+    Serial.printf("Upload lid status to firebase... %s\n\n", Firebase.RTDB.setJSON(&fbdo, garden_global_info_path, &json) ? "successfully" : fbdo.errorReason().c_str());
+  } else {
+    Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
+    return;
   }
 }
 
