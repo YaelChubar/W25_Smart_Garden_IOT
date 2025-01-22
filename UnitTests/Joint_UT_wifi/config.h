@@ -65,6 +65,10 @@ DFRobot_DHT11 DHT;
 #define LEDS_PIN        12 
 #define NUMPIXELS 30 // Popular NeoPixel ring size
 
+#define RGB_RED_PIN 14
+#define RGB_GREEN_PIN 27
+#define RGB_BLUE_PIN  26
+
 
 // Firebase relevant paths
 extern String garden_path = "/gardens/garden_1001";

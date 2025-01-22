@@ -10,7 +10,7 @@
 #include <time.h>
 #include <DFRobot_DHT11.h>
 // ESP hard coded definitions
-#define ESP_ID 1001
+#define ESP_ID 2001
 
 // ESP digital inputs
 /* Moisture sensor unit test 
@@ -73,6 +73,26 @@
 // Din --> D12
 #define LEDS_PIN        12 
 #define NUMPIXELS 30 // Popular NeoPixel ring size
+
+// RGB light Connection layout:
+// GRD --> GRD
+// R --> D14
+// G --> D17
+// B --> D26
+// each input requires 220 0hm resistor
+#define RGB_RED_PIN 14
+#define RGB_GREEN_PIN 27
+#define RGB_BLUE_PIN  26
+
+#define CALIBRATION_TIMEOUT 300000
+#define LID_LIGHT_THRESHOLD 75
+#define WATER_LEVE_THRESHOLD  10
+
+//Offline default values
+#define DRY_SOIL_DEFAULT  4095
+#define WET_SOIL_DEFAULT  2095
+#define NEEDS_DIRECT_SUN_DEFAULT  0
+#define LEDS_ON_DEFAULT 0
 
 
 // Firebase relevant paths

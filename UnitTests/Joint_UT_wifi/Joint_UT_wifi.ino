@@ -41,6 +41,10 @@ void setup(void) {
   pinMode(PUMP_PIN_NO_4, OUTPUT);
   digitalWrite(PUMP_PIN_NO_4, HIGH);
 
+  pinMode(RGB_RED_PIN,  OUTPUT);              
+  pinMode(RGB_GREEN_PIN, OUTPUT);
+  pinMode(RGB_BLUE_PIN, OUTPUT);
+
   // INITIALIZE NeoPixel strip object (REQUIRED)
   pixels.begin(); 
 
@@ -76,6 +80,12 @@ void setup(void) {
   // Automatically reconnect Wi-Fi if disconnected
   Firebase.reconnectWiFi(true);
 
+}
+
+void setColor(int redValue, int greenValue,  int blueValue) {
+  analogWrite(RGB_RED_PIN, redValue);
+  analogWrite(RGB_GREEN_PIN,  greenValue);
+  analogWrite(RGB_BLUE_PIN, blueValue);
 }
 
 void loop(void) {
@@ -130,6 +140,11 @@ void loop(void) {
     printf("current angle = %f\n", current);
     delay(1000);
   //}
+
+  setColor(255, 0, 0); // Red Color
+  delay(1000);
+  setColor(255, 30, 170); // Red Color
+  delay(1000);
   
   //testing one pump at a time
   digitalWrite(PUMP_PIN_NO_1, LOW);
