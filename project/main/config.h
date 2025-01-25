@@ -10,7 +10,7 @@
 #include <time.h>
 #include <DFRobot_DHT11.h>
 // ESP hard coded definitions
-#define ESP_ID 2001
+#define ESP_ID 1021
 
 // ESP digital inputs
 /* Moisture sensor unit test 
@@ -88,14 +88,21 @@
 
 #define CALIBRATION_TIMEOUT 300000
 #define LID_LIGHT_THRESHOLD 75
-#define WATER_LEVE_THRESHOLD  10
+#define WATER_LEVEL_THRESHOLD  10
+
+#define MOISTURE_LEVEL_LOW  10
+#define MOISTURE_LEVEL_MID  30
+#define MOISTURE_LEVEL_HIGH 50
 
 //Offline default values
-#define DRY_SOIL_DEFAULT  4095
-#define WET_SOIL_DEFAULT  2095
+int existing_plants[4] = {0};
+int dry_soil_default[4] = {0};
+int wet_soil_default[4] = {0};
+int lid_open = 0;
+int leds_on = 0;
 #define NEEDS_DIRECT_SUN_DEFAULT  0
-#define LEDS_ON_DEFAULT 0
 #define MANUAL_MODE_DEFAULT 0
+#define SOIL_MOISTURE_LEVEL_DEFAULT  2
 
 
 // Firebase relevant paths

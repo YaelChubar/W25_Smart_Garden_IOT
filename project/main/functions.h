@@ -15,7 +15,10 @@ void measure_water_level_value();
 int measure_light_value();
 void upload_handshake();
 void handle_lid_auto(int light_measurement);
-void update_lid_status_firebase(int lid_mode);
+void update_lid_status(int lid_mode);
+void turn_leds_on(bool state);
+void plant_manual_pump(int plant_id);
+void upload_irrigation_time(int plant_id);
 //void get_existing_plants();
 
 //getter functions
@@ -26,5 +29,8 @@ int get_plant_pump_pin_by_id(int plant_id);
 int get_moisture_sensor_pin_by_id(int plant_id);
 bool get_needs_direct_sun();
 bool get_leds_status();
+bool get_lid_status();
+int get_soil_moisture_level(int plant_id);
+bool get_plant_pump_water(int plant_id);
 
 #endif
