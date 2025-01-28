@@ -18,7 +18,7 @@
  * GRD --> GRD
  * VCC --> 5V
  * AUOT --> D4 */
-#define MOISTURE_SENSOR_PIN_1 34        // Analog pin connected to the first moisture sensor
+#define MOISTURE_SENSOR_PIN_1 35        // Analog pin connected to the first moisture sensor
 #define MOISTURE_SENSOR_PIN_2 33        // Analog pin connected to the second moisture sensor
 #define MOISTURE_SENSOR_PIN_3 32        // Analog pin connected to the third moisture sensor
 #define MOISTURE_SENSOR_PIN_4 35        // Analog pin connected to the fourth moisture sensor
@@ -66,8 +66,8 @@
  * yellow --> GRD
  * red --> D15 (Touch 3) */
 #define WATER_LEVEL_PIN T3
-#define WATER_LEVEL_MIN_VALUE 30
-#define WATER_LEVEL_MAX_VALUE 40
+#define WATER_LEVEL_MIN_VALUE 9
+#define WATER_LEVEL_MAX_VALUE 26
 
 // Leds Connection layout:
 // RGD --> GRD
@@ -88,7 +88,8 @@
 
 #define CALIBRATION_TIMEOUT 300000
 #define LID_LIGHT_THRESHOLD 75
-#define WATER_LEVEL_THRESHOLD  10
+#define WATER_LEVEL_THRESHOLD  20
+#define PUMP_WATER_TIME 2500
 
 #define MOISTURE_LEVEL_LOW  10
 #define MOISTURE_LEVEL_MID  30

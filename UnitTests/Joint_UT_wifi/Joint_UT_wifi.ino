@@ -116,8 +116,8 @@ void loop(void) {
   int waterTankRead = calculatePercentage(waterTankReadRaw);
 
   Serial.print("Water tank level at: ");
-  Serial.print(waterTankRead);
-  Serial.println("%");
+  Serial.print(waterTankReadRaw);
+  //Serial.println("%");
 
   pixels.clear(); // Set all pixel colors to 'off'
   for(int i=0; i<NUMPIXELS; i++) { // For each pixel...

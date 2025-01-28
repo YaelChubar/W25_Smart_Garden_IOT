@@ -10,6 +10,7 @@ FirebaseAuth auth;
 FirebaseConfig config;
 int plants_num;
 unsigned long readDataPrevMillis = 0;
+unsigned long uploadSensorDataPrevMillis = 0;
 Servo myServo;
 DFRobot_DHT11 DHT;
 bool wifi_connected;
@@ -160,7 +161,8 @@ void loop() {
             continue;
           }
           // check moisture and water if needed
-          if (get_normalized_water_level() >= WATER_LEVEL_THRESHOLD) {
+          if (millis() - uploadSensorDataPrevMillis > 60000 && get_normalized_water_level() >= WATER_LEVEL_THRESHOLD) {
+            uploadSensorDataPrevMillis = millis();
             water_plant(i);
           }
         }
@@ -343,6 +345,66 @@ bool is_plant_ready(int plant_id) {
   return false;
 }
 
+int get_dry_soil_measurement(int plant_id) {
+  if (dry_soil_default[plant_id-1]) {
+    return dry_soil_default[plant_id-1];
+  }
+  //read val from firebase
+  if (wifi_connected && Firebase.ready()) {
+    String plant_path = garden_path + "/plants/plant" + String(plant_id) + "/calibration";
+    if (Firebase.RTDB.getJSON(&fbdo, plant_path)) {
+      FirebaseJson &json = fbdo.jsonObject();
+      FirebaseJsonData dry_measurement;
+
+      if (json.get(dry_measurement, "dry_soil_measurement")) {
+        Serial.print("dry_measurement: ");
+        Serial.println(dry_measurement.intValue);
+        return dry_measurement.intValue;
+      } else {
+        Serial.printf("Error getting plant %d dry_measurement: %s\n", plant_id, fbdo.errorReason().c_str());
+        return 0;
+      }
+    } else {
+      Serial.printf("Error getting plant %d plant_path directory: %s\n", plant_id, fbdo.errorReason().c_str());
+      return 0;
+    }
+  } else {
+    Serial.printf("Error : wifi is not connected, no default value %s\n", plant_id, fbdo.errorReason().c_str());
+    // TODO: add light inidicator
+    return 0;
+  }
+}
+
+int get_wet_soil_measurement(int plant_id) {
+  if (wet_soil_default[plant_id-1]) {
+    return wet_soil_default[plant_id-1];
+  }
+  //read val from firebase
+  if (wifi_connected && Firebase.ready()) {
+    String plant_path = garden_path + "/plants/plant" + String(plant_id) + "/calibration";
+    if (Firebase.RTDB.getJSON(&fbdo, plant_path)) {
+      FirebaseJson &json = fbdo.jsonObject();
+      FirebaseJsonData wet_measurement;
+
+      if (json.get(wet_measurement, "wet_soil_measurement")) {
+        Serial.print("wet_measurement: ");
+        Serial.println(wet_measurement.intValue);
+        return wet_measurement.intValue;
+      } else {
+        Serial.printf("Error getting plant %d wet_measurement: %s\n", plant_id, fbdo.errorReason().c_str());
+        return 0;
+      }
+    } else {
+      Serial.printf("Error getting plant %d plant_path directory: %s\n", plant_id, fbdo.errorReason().c_str());
+      return 0;
+    }
+  } else {
+    Serial.printf("Error : wifi is not connected, no default value %s\n", plant_id, fbdo.errorReason().c_str());
+    // TODO: add light inidicator
+    return 0;
+  }
+}
+
 /* 
 Flow: 
 1. Read moisture calibration dry and wet values
@@ -356,8 +418,8 @@ void water_plant(int plant_id) {
   String plant_moisture_sesnor_path = garden_path + "/plants/plant" + String(plant_id)+ "/moisture_sensor";
   int moisture_pin = get_moisture_sensor_pin_by_id(plant_id);
   int pump_pin = get_plant_pump_pin_by_id(plant_id);
-  int dry_soil_val = dry_soil_default[plant_id-1];
-  int wet_soil_val = wet_soil_default[plant_id-1];
+  int dry_soil_val = get_dry_soil_measurement(plant_id);
+  int wet_soil_val = get_wet_soil_measurement(plant_id);
   int raw_moisture_level = get_soil_moisture_level(plant_id);
   int soil_moisture_level_val = 0;
   int moisture_sensor_reading = 0;
@@ -384,8 +446,8 @@ void water_plant(int plant_id) {
   Serial.println(moisture_sensor_reading);
   // calculate and print normalized value
   normalized_moisture_val = calculatePercentage(moisture_sensor_reading, wet_soil_val, dry_soil_val);
-  if (normalized_moisture_val == 0) {
-    Serial.printf("Invalid normalized val: wet soil val == dry soil val! %s\n", plant_id, fbdo.errorReason().c_str());
+  if (normalized_moisture_val == -1) {
+    Serial.printf("Invalid normalized val: wet soil val == dry soil val!\n", plant_id);
     return;
   }
   Serial.print("normalized moisture_sensor_reading: ");
@@ -404,28 +466,29 @@ void water_plant(int plant_id) {
   // If value is lower than the one set in soil moisture level, pump water for 5 seconds
   if (normalized_moisture_val <= soil_moisture_level_val) {
     digitalWrite(pump_pin, HIGH);
-    delay(5000);
+    delay(PUMP_WATER_TIME);
     digitalWrite(pump_pin, LOW);
     upload_irrigation_time(plant_id);
   }
 }
 
 
-int calculatePercentage(int rawValue, int min_value, int max_value) {
-  Serial.printf("rawValue = %d \n", rawValue);
-  Serial.printf("min_value = %d \n", min_value);
-  Serial.printf("max_value = %d \n", max_value);
-  
-  if (min_value == max_value) {
-    Serial.printf("min_value == max_value, returning -1\n");
-    return 0;
-  } else {
-    Serial.printf("min_value != max_value, calculatePercentage\n");
-
-    if (rawValue < min_value) rawValue = min_value;
-    if (rawValue > max_value) rawValue = max_value;
-    return (((rawValue - min_value) * 100) / (max_value - min_value));
+int calculatePercentage(int rawValue, int minValue, int maxValue) {
+  // Ensure the maxValue is greater than the minValue to avoid division by zero
+  if (maxValue <= minValue) {
+    Serial.println("Error: maxValue should be greater than minValue");
+    return -1;
   }
+
+  // Constrain the rawValue to stay within the minValue and maxValue range
+  rawValue = constrain(rawValue, minValue, maxValue);
+  Serial.printf("rawValue = %d\n", rawValue);
+
+  // Calculate moisture percentage (flip the range)
+  int percentage = ((maxValue - rawValue) * 100) / (maxValue - minValue);
+  Serial.printf("percentage = %d\n", percentage);
+
+  return percentage;
 
 }
 
@@ -546,7 +609,7 @@ void plant_manual_pump(int plant_id) {
       // get time in millies
       digitalWrite(pump_pin, HIGH);
 
-      delay(5000);
+      delay(PUMP_WATER_TIME);
       digitalWrite(pump_pin, LOW);
       upload_irrigation_time(plant_id);
     } else {
@@ -559,13 +622,14 @@ void upload_irrigation_time(int plant_id) {
   //Upload irrigation time to Firebase
   String plant_irrigation_time_path = garden_path + "/plants/plant" + String(plant_id)+ "/irrigation_time";
   FirebaseJson json_irrigation_time;
+  FirebaseData fbdo_irrigation;
   // TODO : change time val to water amount in ml
-  json_irrigation_time.add(getCurrentDateTime(), 5000);
-  if (Firebase.RTDB.updateNode(&fbdo, plant_irrigation_time_path, &json_irrigation_time)) {
+  json_irrigation_time.add(getCurrentDateTime(), 55);
+  if (Firebase.RTDB.updateNode(&fbdo_irrigation, plant_irrigation_time_path, &json_irrigation_time)) {
     Serial.println("plant_irrigation_time pushed successfully:");
-    Serial.println(fbdo.pushName()); // The unique key for this entry
+    Serial.println(fbdo_irrigation.pushName()); // The unique key for this entry
   } else {
-    Serial.printf("Failed to push plant_irrigation_time_path: %s\n", fbdo.errorReason().c_str());
+    Serial.printf("Failed to push plant_irrigation_time_path: %s\n", fbdo_irrigation.errorReason().c_str());
   }
 }
 

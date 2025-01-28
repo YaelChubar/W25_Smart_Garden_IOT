@@ -32,5 +32,7 @@ bool get_leds_status();
 bool get_lid_status();
 int get_soil_moisture_level(int plant_id);
 bool get_plant_pump_water(int plant_id);
+int get_dry_soil_measurement(int plant_id);
+int get_wet_soil_measurement(int plant_id);
 
 #endif
