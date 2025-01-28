@@ -145,7 +145,7 @@ void loop() {
   {
     readDataPrevMillis = millis();
 
-    if (Firebase.RTDB.getJSON(&fbdo, garden_path)) {
+    if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
       // per plant logic
       if (is_manual_mode()) {
         Serial.printf("Manual mode on\n");
@@ -323,29 +323,26 @@ void check_calibration_mode(int plant_id) {
 }
 
 bool is_plant_ready(int plant_id) {
-  String plant_path = garden_path + "/plants/plant" + String(plant_id);
-  if (Firebase.RTDB.getJSON(&fbdo, plant_path)) {
-    FirebaseJson &json = fbdo.jsonObject();
-    FirebaseJsonData plant_calibrated;
-    
-    if (json.get(plant_calibrated, "plant_calibrated")) { 
-      if(plant_calibrated.intValue == 1) {
-        Serial.printf("plant %d is ready\n", plant_id);
-        existing_plants[plant_id-1] = 1; 
-        return true;
-      } else {
-        Serial.printf("plant %d is NOT ready\n", plant_id);
-        existing_plants[plant_id-1] = 0; 
-        return false;
-      }
+  String plant_path = garden_path + "/plants/plant" + String(plant_id) + "/plant_calibrated";
+  FirebaseData fbdo_plant_calibrated;
+  if (Firebase.RTDB.getInt(&fbdo_plant_calibrated, plant_path)) { // Directly get the integer value
+    int plant_calibrated = fbdo_plant_calibrated.intData(); // Retrieve the value from the response
+
+    if (plant_calibrated == 1) {
+      Serial.printf("Plant %d is ready\n", plant_id);
+      existing_plants[plant_id - 1] = 1;
+      return true;
     } else {
-      Serial.printf("Error getting plant_calibrated field for plant %d\n", plant_id);
+      Serial.printf("Plant %d is NOT ready\n", plant_id);
+      existing_plants[plant_id - 1] = 0;
+      return false;
     }
   } else {
-    // plant directory does not exist
-    Serial.printf("Error getting plant %d directory: %s\n", plant_id, fbdo.errorReason().c_str());
-    existing_plants[plant_id-1] = 0; 
+    // Handle errors (e.g., path doesn't exist or connection issues)
+    Serial.printf("Error getting plant %d data: %s\n", plant_id, "");
+    existing_plants[plant_id - 1] = 0;
   }
+  
   Serial.println("Returning false, end of is_plant_ready func\n");
   return false;
 }
@@ -649,27 +646,30 @@ void upload_irrigation_time(int plant_id) {
 
 bool get_plant_pump_water(int plant_id) {
   FirebaseData fbdo_pump;
-  String plant_path = garden_path + "/plants/plant" + String(plant_id);
-  if (Firebase.RTDB.getJSON(&fbdo_pump, plant_path)) {
-    FirebaseJson &json = fbdo_pump.jsonObject();
-    FirebaseJsonData plant_pump_water;
-    
-    if (json.get(plant_pump_water, "pump_water")) { 
-      if(plant_pump_water.intValue == 1) {
-        // set value back to 0
-        json.add("pump_water", 0);
-        Serial.printf("Zero pump_water val in firebase... %s\n", Firebase.RTDB.setJSON(&fbdo_pump, garden_global_info_path, &json) ? "successfully" : fbdo_pump.errorReason().c_str());
+  // Direct path to the pump_water value
+  String plant_path_pump_water = garden_path + "/plants/plant" + String(plant_id) + "/pump_water";
+
+  // Directly fetch the pump_water value
+  if (Firebase.RTDB.getInt(&fbdo_pump, plant_path_pump_water)) {
+    int pump_water = fbdo_pump.intData(); // Get the value directly
+
+    if (pump_water == 1) {
+      // Set value back to 0 in Firebase after processing
+      if (Firebase.RTDB.setInt(&fbdo_pump, plant_path_pump_water, 0)) {
+        Serial.println("Successfully set pump_water to 0 in Firebase.");
         return true;
       } else {
+        Serial.printf("Error setting pump_water to 0: %s\n", "");
         return false;
       }
     } else {
-      Serial.printf("Error getting plant_pump_water field for plant %d\n", plant_id);
+      return false;  // No water pump action required
     }
   } else {
-    // plant directory does not exist
-    Serial.printf("Error getting plant %d directory: %s\n", plant_id, fbdo_pump.errorReason().c_str());
+    // Handle errors during fetching pump_water value
+    Serial.printf("Error getting pump_water field for plant %d: %s\n", plant_id, "");
   }
+  
   Serial.println("Returning false, end of get_plant_pump_water func\n");
   return false;
 }
@@ -784,27 +784,25 @@ bool get_needs_direct_sun() {
 }
 
 int get_soil_moisture_level(int plant_id) {
+  // Ensure Wi-Fi and Firebase connection
+  FirebaseData fbdo_moisture;
   if (wifi_connected && Firebase.ready()) {
-    //Read soil moisture level (1/2/3)
-    String plant_path = garden_path + "/plants/plant" + String(plant_id);
-    if (Firebase.RTDB.getJSON(&fbdo, plant_path)) {
-      FirebaseJson &json = fbdo.jsonObject();
-      FirebaseJsonData soil_moisture_level;
+    // Direct path to the soil_moisture_level value
+    String plant_path = garden_path + "/plants/plant" + String(plant_id) + "/soil_moisture_level";
 
-      if (json.get(soil_moisture_level, "soil_moisture_level")) {
-        Serial.print("soil_moisture_level: ");
-        Serial.println(soil_moisture_level.intValue);
-        return soil_moisture_level.intValue;
-      } else {
-        Serial.printf("Error getting plant %d soil_moisture_level: %s\n", plant_id, fbdo.errorReason().c_str());
-        return SOIL_MOISTURE_LEVEL_DEFAULT;
-      }
+    // Directly fetch the soil_moisture_level value
+    if (Firebase.RTDB.getInt(&fbdo_moisture, plant_path)) {
+      int soil_moisture_level = fbdo_moisture.intData(); // Get the value directly
+      Serial.print("soil_moisture_level: ");
+      Serial.println(soil_moisture_level);
+      return soil_moisture_level;
     } else {
-      Serial.printf("Error getting plant %d plant_path directory: %s\n", plant_id, fbdo.errorReason().c_str());
+      // Handle errors during fetching soil_moisture_level value
+      Serial.printf("Error getting plant %d soil_moisture_level: %s\n", plant_id, "");
       return SOIL_MOISTURE_LEVEL_DEFAULT;
     }
   } else {
-    return SOIL_MOISTURE_LEVEL_DEFAULT;
+    return SOIL_MOISTURE_LEVEL_DEFAULT; // Default value if Wi-Fi or Firebase is not ready
   }
 }
 
