@@ -8,7 +8,7 @@ void components_setup();
 void configureTime();
 void check_calibration_mode(int plant_id);
 bool is_plant_ready(int plant_id);
-void water_plant(int plant_id);
+void water_plant(int plant_id, int normalized_moisture_val);
 int calculatePercentage(int rawValue, int min_value, int max_value);
 void measure_DHT_values();
 void measure_water_level_value();
@@ -19,6 +19,7 @@ void update_lid_status(int lid_mode);
 void turn_leds_on(bool state);
 void plant_manual_pump(int plant_id);
 void upload_irrigation_time(int plant_id);
+int measure_current_moisture(int plant_id);
 //void get_existing_plants();
 
 //getter functions

@@ -10,7 +10,7 @@ FirebaseAuth auth;
 FirebaseConfig config;
 int plants_num;
 unsigned long readDataPrevMillis = 0;
-unsigned long uploadSensorDataPrevMillis = 0;
+unsigned long uploadSensorDataPrevMillis[4] = {0};
 Servo myServo;
 DFRobot_DHT11 DHT;
 bool wifi_connected;
@@ -161,9 +161,13 @@ void loop() {
             continue;
           }
           // check moisture and water if needed
-          if (millis() - uploadSensorDataPrevMillis > 60000 && get_normalized_water_level() >= WATER_LEVEL_THRESHOLD) {
-            uploadSensorDataPrevMillis = millis();
-            water_plant(i);
+          if (millis() - uploadSensorDataPrevMillis[i-1] > 60000) {
+            uploadSensorDataPrevMillis[i-1] = millis();
+            int soil_measurement = measure_current_moisture(i);
+            if (soil_measurement != -1 && get_normalized_water_level() >= WATER_LEVEL_THRESHOLD) {
+              water_plant(i,soil_measurement);
+            }
+            // TODO: add handling if failed measurement
           }
         }
         handle_lid_auto(measure_light_value());
@@ -223,12 +227,13 @@ int get_plant_pump_pin_by_id(int plant_id) {
 }
 
 void check_calibration_mode(int plant_id) {
+  FirebaseData fbdo_calibration;
   String plant_calibration_path = garden_path + "/plants/plant" + String(plant_id)+ "/calibration";
   int moisture_pin = get_moisture_sensor_pin_by_id(plant_id);
   int moisture_sensor_reading = 0;
 
-  if (Firebase.RTDB.getJSON(&fbdo, plant_calibration_path)) {
-    FirebaseJson &json = fbdo.jsonObject();
+  if (Firebase.RTDB.getJSON(&fbdo_calibration, plant_calibration_path)) {
+    FirebaseJson &json = fbdo_calibration.jsonObject();
     FirebaseJsonData calibration_state;
     FirebaseJsonData moisture_calibration_dry;
     FirebaseJsonData moisture_calibration_wet;
@@ -255,7 +260,7 @@ void check_calibration_mode(int plant_id) {
             json.add("dry_soil_measurement", moisture_sensor_reading);
             json.add("moisture_calibration_dry", 0);
             // upload data to RTDB
-            Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, plant_calibration_path, &json) ? "ok" : fbdo.errorReason().c_str());
+            Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo_calibration, plant_calibration_path, &json) ? "ok" : fbdo_calibration.errorReason().c_str());
           }
         }
 
@@ -275,12 +280,12 @@ void check_calibration_mode(int plant_id) {
             json.add("moisture_calibration_wet", 0);
             json.add("moisture_calibration_mode", 0);
             // upload data to RTDB
-            Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, plant_calibration_path, &json) ? "ok" : fbdo.errorReason().c_str());
+            Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo_calibration, plant_calibration_path, &json) ? "ok" : fbdo_calibration.errorReason().c_str());
           }
         }
 
-        Firebase.RTDB.getJSON(&fbdo, plant_calibration_path);
-        json = fbdo.jsonObject();
+        Firebase.RTDB.getJSON(&fbdo_calibration, plant_calibration_path);
+        json = fbdo_calibration.jsonObject();
         json.get(calibration_state, "moisture_calibration_mode");
 
         // Check if the 5 minutes timeout has been exceeded
@@ -297,7 +302,7 @@ void check_calibration_mode(int plant_id) {
             json.add("moisture_calibration_mode", 0);
             json.add("calibration_timeout", 1);
             // upload data to RTDB
-            Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, plant_calibration_path, &json) ? "ok" : fbdo.errorReason().c_str());
+            Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo_calibration, plant_calibration_path, &json) ? "ok" : fbdo_calibration.errorReason().c_str());
             break; // Exit the loop after timeout
         }
         upload_handshake();
@@ -305,13 +310,13 @@ void check_calibration_mode(int plant_id) {
 
     } else {
       // Failed to retrieve data, print error
-      Serial.printf("Error getting calibration mode: %s , current plant id = %d\n", fbdo.errorReason().c_str(), plant_id);
+      Serial.printf("Error getting calibration mode: %s , current plant id = %d\n", fbdo_calibration.errorReason().c_str(), plant_id);
       return;
     }
 
   } else {
       // Failed to retrieve data, print error
-      Serial.printf("Error getting calibration directory: %s , current plant id = %d\n", fbdo.errorReason().c_str(), plant_id);
+      Serial.printf("Error getting calibration directory: %s , current plant id = %d\n", fbdo_calibration.errorReason().c_str(), plant_id);
       return;
   }
   
@@ -405,6 +410,40 @@ int get_wet_soil_measurement(int plant_id) {
   }
 }
 
+int measure_current_moisture(int plant_id) {
+  String plant_moisture_sesnor_path = garden_path + "/plants/plant" + String(plant_id)+ "/moisture_sensor";
+  int moisture_pin = get_moisture_sensor_pin_by_id(plant_id);
+  int moisture_sensor_reading = 0;
+  int normalized_moisture_val = 0;
+  int dry_soil_val = get_dry_soil_measurement(plant_id);
+  int wet_soil_val = get_wet_soil_measurement(plant_id);
+
+  // preform sensor reading
+  moisture_sensor_reading = analogRead(moisture_pin);
+  Serial.print("current moisture sensor reading: ");
+  Serial.println(moisture_sensor_reading);
+  // calculate and print normalized value
+  normalized_moisture_val = calculatePercentage(moisture_sensor_reading, wet_soil_val, dry_soil_val);
+  if (normalized_moisture_val == -1) {
+    Serial.printf("Invalid normalized val: wet soil val == dry soil val!\n", plant_id);
+    return -1;
+  }
+  Serial.print("normalized moisture_sensor_reading: ");
+  Serial.println(normalized_moisture_val);
+  
+  //Upload measured moisture val to Firebase
+  FirebaseJson json_normalized_moisture;
+  json_normalized_moisture.add(getCurrentDateTime(), normalized_moisture_val);
+  if (Firebase.RTDB.updateNode(&fbdo, plant_moisture_sesnor_path, &json_normalized_moisture)) {
+    Serial.println("Normalized_moisture_val pushed successfully:");
+    Serial.println(fbdo.pushName()); // The unique key for this entry
+  } else {
+    Serial.printf("Failed to push Normalized_moisture_val: %s\n", fbdo.errorReason().c_str());
+  }
+
+  return normalized_moisture_val;
+}
+
 /* 
 Flow: 
 1. Read moisture calibration dry and wet values
@@ -414,16 +453,10 @@ Flow:
 5. normalize reading to precent
 6. If value is lower than the one set in soil moisture level, pump water for 5 seconds
 */
-void water_plant(int plant_id) {
-  String plant_moisture_sesnor_path = garden_path + "/plants/plant" + String(plant_id)+ "/moisture_sensor";
-  int moisture_pin = get_moisture_sensor_pin_by_id(plant_id);
+void water_plant(int plant_id, int normalized_moisture_val) {
   int pump_pin = get_plant_pump_pin_by_id(plant_id);
-  int dry_soil_val = get_dry_soil_measurement(plant_id);
-  int wet_soil_val = get_wet_soil_measurement(plant_id);
   int raw_moisture_level = get_soil_moisture_level(plant_id);
   int soil_moisture_level_val = 0;
-  int moisture_sensor_reading = 0;
-  int normalized_moisture_val = 0;
   
   switch (raw_moisture_level) {
     case 1:
@@ -438,29 +471,6 @@ void water_plant(int plant_id) {
     default:
       Serial.printf("Invalid soil moisture val for plant %d: %s\n", plant_id, fbdo.errorReason().c_str());
       return;
-  }
-
-  // preform sensor reading
-  moisture_sensor_reading = analogRead(moisture_pin);
-  Serial.print("current moisture sensor reading: ");
-  Serial.println(moisture_sensor_reading);
-  // calculate and print normalized value
-  normalized_moisture_val = calculatePercentage(moisture_sensor_reading, wet_soil_val, dry_soil_val);
-  if (normalized_moisture_val == -1) {
-    Serial.printf("Invalid normalized val: wet soil val == dry soil val!\n", plant_id);
-    return;
-  }
-  Serial.print("normalized moisture_sensor_reading: ");
-  Serial.println(normalized_moisture_val);
-  
-  //Upload measured moisture val to Firebase
-  FirebaseJson json_normalized_moisture;
-  json_normalized_moisture.add(getCurrentDateTime(), normalized_moisture_val);
-  if (Firebase.RTDB.updateNode(&fbdo, plant_moisture_sesnor_path, &json_normalized_moisture)) {
-    Serial.println("Normalized_moisture_val pushed successfully:");
-    Serial.println(fbdo.pushName()); // The unique key for this entry
-  } else {
-    Serial.printf("Failed to push Normalized_moisture_val: %s\n", fbdo.errorReason().c_str());
   }
 
   // If value is lower than the one set in soil moisture level, pump water for 5 seconds
@@ -493,6 +503,8 @@ int calculatePercentage(int rawValue, int minValue, int maxValue) {
 }
 
 void measure_DHT_values() {
+  FirebaseData fbdo_DHT;
+  
   // read temp & humi values
   DHT.read(DHT11_PIN);
   Serial.print("temp:");
@@ -501,12 +513,12 @@ void measure_DHT_values() {
   Serial.println(DHT.humidity);
 
   // check that path exists
-  if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
-    FirebaseJson &json = fbdo.jsonObject();
+  if (Firebase.RTDB.getJSON(&fbdo_DHT, garden_global_info_path)) {
+    FirebaseJson &json = fbdo_DHT.jsonObject();
     //upload data
     json.add("garden_humidity", DHT.humidity);
     json.add("garden_temperature", DHT.temperature);
-    Serial.printf("garden_temperature and humi vals pushed... %s\n\n", Firebase.RTDB.setJSON(&fbdo, garden_global_info_path, &json) ? "successfully" : fbdo.errorReason().c_str());
+    Serial.printf("garden_temperature and humi vals pushed... %s\n\n", Firebase.RTDB.setJSON(&fbdo_DHT, garden_global_info_path, &json) ? "successfully" : fbdo_DHT.errorReason().c_str());
   }
 }
 
@@ -517,33 +529,35 @@ int get_normalized_water_level() {
 
 void measure_water_level_value() {
   // measure water level
+  FirebaseData fbdo_water_level;
   int normalized_water_tank_read = get_normalized_water_level();
   Serial.printf("measure_water_level_value func\n");
 
   // check if path exists
-  if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
-    FirebaseJson &json = fbdo.jsonObject();
+  if (Firebase.RTDB.getJSON(&fbdo_water_level, garden_global_info_path)) {
+    FirebaseJson &json = fbdo_water_level.jsonObject();
     //upload data
     json.add("water_level", normalized_water_tank_read);
-    Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo, garden_global_info_path, &json) ? "ok" : fbdo.errorReason().c_str());
+    Serial.printf("Set json... %s\n\n", Firebase.RTDB.setJSON(&fbdo_water_level, garden_global_info_path, &json) ? "ok" : fbdo_water_level.errorReason().c_str());
   } else {
-    Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
+    Serial.printf("Error getting garden_global_info_path: %s\n", fbdo_water_level.errorReason().c_str());
     return;
   }
 }
 
 int measure_light_value() {
+  FirebaseData fbdo_light;
   int light_sensor_reading = analogRead(LIGHT_SENSOR_PIN);
   int normalized_light_sensor_reading = calculatePercentage(light_sensor_reading, LIGHT_SENSOR_MIN_VALUE, LIGHT_SENSOR_MAX_VALUE);
 
     // check if path exists
-  if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
-    FirebaseJson &json = fbdo.jsonObject();
+  if (Firebase.RTDB.getJSON(&fbdo_light, garden_global_info_path)) {
+    FirebaseJson &json = fbdo_light.jsonObject();
     //upload data
     json.add("garden_light_strength", normalized_light_sensor_reading);
-    Serial.printf("garden_light_strength pushed... %s\n\n", Firebase.RTDB.setJSON(&fbdo, garden_global_info_path, &json) ? "successfully" : fbdo.errorReason().c_str());    
+    Serial.printf("garden_light_strength pushed... %s\n\n", Firebase.RTDB.setJSON(&fbdo_light, garden_global_info_path, &json) ? "successfully" : fbdo_light.errorReason().c_str());    
   } else {
-    Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
+    Serial.printf("Error getting garden_global_info_path: %s\n", fbdo_light.errorReason().c_str());
     return -1;
   }
 
@@ -634,16 +648,17 @@ void upload_irrigation_time(int plant_id) {
 }
 
 bool get_plant_pump_water(int plant_id) {
+  FirebaseData fbdo_pump;
   String plant_path = garden_path + "/plants/plant" + String(plant_id);
-  if (Firebase.RTDB.getJSON(&fbdo, plant_path)) {
-    FirebaseJson &json = fbdo.jsonObject();
+  if (Firebase.RTDB.getJSON(&fbdo_pump, plant_path)) {
+    FirebaseJson &json = fbdo_pump.jsonObject();
     FirebaseJsonData plant_pump_water;
     
     if (json.get(plant_pump_water, "pump_water")) { 
       if(plant_pump_water.intValue == 1) {
         // set value back to 0
         json.add("pump_water", 0);
-        Serial.printf("Zero pump_water val in firebase... %s\n", Firebase.RTDB.setJSON(&fbdo, garden_global_info_path, &json) ? "successfully" : fbdo.errorReason().c_str());
+        Serial.printf("Zero pump_water val in firebase... %s\n", Firebase.RTDB.setJSON(&fbdo_pump, garden_global_info_path, &json) ? "successfully" : fbdo_pump.errorReason().c_str());
         return true;
       } else {
         return false;
@@ -653,7 +668,7 @@ bool get_plant_pump_water(int plant_id) {
     }
   } else {
     // plant directory does not exist
-    Serial.printf("Error getting plant %d directory: %s\n", plant_id, fbdo.errorReason().c_str());
+    Serial.printf("Error getting plant %d directory: %s\n", plant_id, fbdo_pump.errorReason().c_str());
   }
   Serial.println("Returning false, end of get_plant_pump_water func\n");
   return false;
@@ -817,13 +832,14 @@ bool is_manual_mode() {
 
 void update_lid_status(int lid_mode) {
   // check if path exists
-  if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
-    FirebaseJson &json = fbdo.jsonObject();
+  FirebaseData fbdo_lid;
+  if (Firebase.RTDB.getJSON(&fbdo_lid, garden_global_info_path)) {
+    FirebaseJson &json = fbdo_lid.jsonObject();
     //upload data
     json.add("lid_open", lid_mode);
-    Serial.printf("Upload lid status to firebase... %s\n\n", Firebase.RTDB.setJSON(&fbdo, garden_global_info_path, &json) ? "successfully" : fbdo.errorReason().c_str());
+    Serial.printf("Upload lid status to firebase... %s\n\n", Firebase.RTDB.setJSON(&fbdo_lid, garden_global_info_path, &json) ? "successfully" : fbdo_lid.errorReason().c_str());
   } else {
-    Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
+    Serial.printf("Error getting garden_global_info_path: %s\n", fbdo_lid.errorReason().c_str());
   }
   lid_open = lid_mode;
 }

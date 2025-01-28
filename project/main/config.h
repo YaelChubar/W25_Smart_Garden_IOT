@@ -66,8 +66,8 @@
  * yellow --> GRD
  * red --> D15 (Touch 3) */
 #define WATER_LEVEL_PIN T3
-#define WATER_LEVEL_MIN_VALUE 9
-#define WATER_LEVEL_MAX_VALUE 26
+#define WATER_LEVEL_MIN_VALUE 19
+#define WATER_LEVEL_MAX_VALUE 24
 
 // Leds Connection layout:
 // RGD --> GRD
