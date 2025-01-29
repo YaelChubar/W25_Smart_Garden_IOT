@@ -20,6 +20,9 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 TaskHandle_t mainTaskHandle = NULL;
 TaskHandle_t blinkTaskHandle = NULL;
 
+unsigned long lastWiFiRetryMillis = 0;
+const unsigned long WIFI_RETRY_INTERVAL = 6000; 
+
 // Non-blocking blink task
 void blinkTask(void *parameter) {
   while (!wifi_connected) {
@@ -174,23 +177,35 @@ String getCurrentDateTime() {
   return "1970-01-01 00:00:00"; // Fallback in case of error
 }
 
-void loop() {
-  // check wifi connection
+//handle WiFi reconnection
+void handleWiFiConnection() {
+  // Check current WiFi status
   if (WiFi.status() == WL_CONNECTED) {
     wifi_connected = true;
-    // Turn indicator off
-    setColor(0,0,0);
+    setColor(0, 0, 0); // Turn off indicator
   } else {
     wifi_connected = false;
-    // Turn red light indicator on
-    setColor(255,0,0);
+    setColor(255, 0, 0); // Red indicator
+
+    // Only attempt reconnection if enough time has passed since last attempt
+    if (millis() - lastWiFiRetryMillis >= WIFI_RETRY_INTERVAL) {
+      Serial.println("Attempting to reconnect WiFi...");
+      WiFi.disconnect();
+      WiFi.begin(); // Attempt to reconnect with stored credentials
+      lastWiFiRetryMillis = millis();
+    }
   }
+}
+
+void loop() {
+  // Check and handle WiFi connection
+  handleWiFiConnection();
 
   if ((millis() - readDataPrevMillis > 15000 || readDataPrevMillis == 0))
   {
     readDataPrevMillis = millis();
 
-    if (Firebase.ready() && Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
+    //if (Firebase.ready() && Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
       // per plant logic
       if (is_manual_mode()) {
         Serial.printf("Manual mode on\n");
@@ -231,10 +246,11 @@ void loop() {
 
 
 
-  } 
+    //} 
   // Delay main loop for 1 minute
   // delay(60000);
 
+  }
 }
 
 int get_moisture_sensor_pin_by_id(int plant_id) {
