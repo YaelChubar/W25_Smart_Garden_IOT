@@ -5,7 +5,7 @@
 
 #include <ESP32Servo.h>
 
-#define SERVO_PIN 18
+#define SERVO_PIN 21
 
 Servo myServo;
 
@@ -18,11 +18,11 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  if (Serial.available()) {
-    int angle = Serial.parseInt();
-    myServo.write(angle);
-    double current = myServo.read();
-    printf("current angle = %f\n", current);
-  }
-  delay(20);
+  myServo.write(30);
+  Serial.print("Servo angle: 30\n");
+  delay(5000);
+  myServo.write(170);
+  Serial.print("Servo angle: 170\n");
+  delay(8000);
+
 }

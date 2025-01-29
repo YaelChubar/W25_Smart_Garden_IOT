@@ -22,7 +22,7 @@ void upload_irrigation_time(int plant_id);
 int measure_current_moisture(int plant_id);
 //void get_existing_plants();
 
-//getter functions
+//getter & setter functions
 String getCurrentDateTime();
 bool is_manual_mode();
 int get_normalized_water_level();
@@ -35,5 +35,6 @@ int get_soil_moisture_level(int plant_id);
 bool get_plant_pump_water(int plant_id);
 int get_dry_soil_measurement(int plant_id);
 int get_wet_soil_measurement(int plant_id);
+void setColor(int redValue, int greenValue,  int blueValue);
 
 #endif

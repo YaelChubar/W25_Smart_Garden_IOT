@@ -19,13 +19,13 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
   Serial.begin(115200);
+  
+  components_setup();
 
   initial_wifi_setup();
 
   firebase_setup();
-
-  components_setup();
-
+  
   // Configure NTP for time synchronization
   configureTime();
 }
@@ -74,7 +74,10 @@ void firebase_setup() {
 
 //setup pumps, leds and servo
 void components_setup() {
+  // Servo setup
   myServo.attach(SERVO_PIN);
+
+  // water pumps setup
   pinMode(PUMP_PIN_NO_1, OUTPUT);
   digitalWrite(PUMP_PIN_NO_1, LOW);
   pinMode(PUMP_PIN_NO_2, OUTPUT);
@@ -83,7 +86,14 @@ void components_setup() {
   digitalWrite(PUMP_PIN_NO_3, LOW);
   pinMode(PUMP_PIN_NO_4, OUTPUT);
   digitalWrite(PUMP_PIN_NO_4, LOW);
+  
+  // leds setup
   pixels.begin(); 
+
+  // RBG inidicator setup
+  pinMode(RGB_RED_PIN,  OUTPUT);              
+  pinMode(RGB_GREEN_PIN, OUTPUT);
+  pinMode(RGB_BLUE_PIN, OUTPUT);
 
 }
 
@@ -840,6 +850,12 @@ void update_lid_status(int lid_mode) {
     Serial.printf("Error getting garden_global_info_path: %s\n", fbdo_lid.errorReason().c_str());
   }
   lid_open = lid_mode;
+}
+
+void setColor(int redValue, int greenValue,  int blueValue) {
+  analogWrite(RGB_RED_PIN, redValue);
+  analogWrite(RGB_GREEN_PIN,  greenValue);
+  analogWrite(RGB_BLUE_PIN, blueValue);
 }
 
 // void get_existing_plants() {
