@@ -13,42 +13,79 @@ unsigned long readDataPrevMillis = 0;
 unsigned long uploadSensorDataPrevMillis[4] = {0};
 Servo myServo;
 DFRobot_DHT11 DHT;
-bool wifi_connected;
+bool wifi_connected = false;
 Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 
+// Task Handles
+TaskHandle_t mainTaskHandle = NULL;
+TaskHandle_t blinkTaskHandle = NULL;
+
+// Non-blocking blink task
+void blinkTask(void *parameter) {
+  while (!wifi_connected) {
+    setColor(0, 0, 255); // Blue ON
+    vTaskDelay(500 / portTICK_PERIOD_MS); // Delay for 500ms (FreeRTOS way)
+
+    setColor(0, 0, 0); // Blue OFF
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+
+  vTaskDelete(NULL); // Stop task after Wi-Fi connects
+}
+
+// Wi-Fi setup task with timeout
+void initial_wifi_setup(void *parameter) {
+  wifiManager.resetSettings();
+  Serial.println("Starting Wi-Fi configuration portal...");
+
+  unsigned long startTime = millis();
+  const unsigned long timeout = 5 * 60 * 1000; // 5 minutes
+
+  while (!wifi_connected) {
+    if (millis() - startTime > timeout) {
+      Serial.println("Wi-Fi setup timed out. Restarting...");
+      setColor(255, 0, 0); // Indicate failure with Red
+      delay(2000);
+      ESP.restart();
+    }
+
+    if (wifiManager.startConfigPortal("SmartGarden-Setup")) {
+      wifi_connected = true;
+      Serial.println("Wi-Fi connected!");
+      Serial.print("IP Address: ");
+      Serial.println(WiFi.localIP());
+      setColor(0, 0, 0); // Turn off light
+    }
+  }
+
+  // Notify the main task (setup) that Wi-Fi is connected
+  if (mainTaskHandle != NULL) {
+    xTaskNotifyGive(mainTaskHandle);
+  }
+
+  vTaskDelete(NULL); // Stop Wi-Fi setup task
+}
 
 void setup() {
   Serial.begin(115200);
-  
+  mainTaskHandle = xTaskGetCurrentTaskHandle(); // Store main task handle
+
   components_setup();
 
-  initial_wifi_setup();
+  // Create the Wi-Fi setup task
+  xTaskCreatePinnedToCore(initial_wifi_setup, "WiFiTask", 5000, NULL, 1, NULL, 1); 
+   
+  // Create the blinking task
+  xTaskCreatePinnedToCore(blinkTask, "BlinkTask", 1000, NULL, 1, &blinkTaskHandle, 0);
+
+  // Wait until Wi-Fi is connected before continuing setup
+  Serial.println("Waiting for Wi-Fi to connect...");
+  ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // Block setup() until Wi-Fi is done
 
   firebase_setup();
-  
+
   // Configure NTP for time synchronization
   configureTime();
-}
-
-// Initial setup:
-void initial_wifi_setup() {
-  // Reset Wi-Fi credentials (remove any saved Wi-Fi credentials from ESP32)
-  wifiManager.resetSettings();
-
-  // Start the Wi-Fi configuration portal in Access Point (AP) mode
-  Serial.println("Starting Wi-Fi configuration portal...\n");
-  if (!wifiManager.startConfigPortal("SmartGarden-Setup")) {
-    wifi_connected = false;
-    Serial.println("Failed to connect and hit timeout\n");
-    ESP.restart();  // Restart ESP32 if it fails to connect
-    // TODO: add light indication
-  }
-
-  // Once connected, print the assigned IP address
-  Serial.println("Wi-Fi connected!\n");
-  Serial.print("IP Address: \n");
-  Serial.println(WiFi.localIP());
-  wifi_connected = true;
 }
 
 void firebase_setup() {
