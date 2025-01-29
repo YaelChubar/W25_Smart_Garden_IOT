@@ -20,7 +20,6 @@ void turn_leds_on(bool state);
 void plant_manual_pump(int plant_id);
 void upload_irrigation_time(int plant_id);
 int measure_current_moisture(int plant_id);
-//void get_existing_plants();
 
 //getter & setter functions
 String getCurrentDateTime();

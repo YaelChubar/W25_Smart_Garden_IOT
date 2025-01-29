@@ -18,7 +18,7 @@
  * GRD --> GRD
  * VCC --> 5V
  * AUOT --> D4 */
-#define MOISTURE_SENSOR_PIN_1 35        // Analog pin connected to the first moisture sensor
+#define MOISTURE_SENSOR_PIN_1 34        // Analog pin connected to the first moisture sensor
 #define MOISTURE_SENSOR_PIN_2 33        // Analog pin connected to the second moisture sensor
 #define MOISTURE_SENSOR_PIN_3 32        // Analog pin connected to the third moisture sensor
 #define MOISTURE_SENSOR_PIN_4 35        // Analog pin connected to the fourth moisture sensor
