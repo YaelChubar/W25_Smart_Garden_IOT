@@ -661,7 +661,6 @@ void handle_manual_mode() {
   //per plant
   for (int plant_id = 1; plant_id < 5; plant_id++) {
       plant_manual_pump(plant_id);
-    
   }
 
 }
@@ -771,44 +770,30 @@ void handle_lid_auto(int light_measurement) {
 
 bool get_leds_status() {
   if (wifi_connected && Firebase.ready()) {
-    // get_status_from_firebase
-    if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
-      FirebaseJson &json = fbdo.jsonObject();
-      FirebaseJsonData leds_status;
-      if (json.get(leds_status, "leds_on")) {
-        leds_on = leds_status.intValue;
-        return leds_on ? true : false;
-      } else {
-        Serial.printf("Failed reading leds_status: %s\n", fbdo.errorReason().c_str());
-        return leds_on;
-      }
+    // Directly get integer value from Firebase
+    if (Firebase.RTDB.getInt(&fbdo, String(garden_global_info_path) + "/leds_on")) {
+      leds_on = fbdo.intData();
+      return leds_on;
     } else {
-      Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
+      Serial.printf("Error getting leds_on: %s\n", fbdo.errorReason().c_str());
       return leds_on;
     }
-  } else { //no wifi connection / firebase disconnected
+  } else { // No Wi-Fi connection / Firebase disconnected
     return leds_on;
   }
 }
 
 bool get_lid_status() {
   if (wifi_connected && Firebase.ready()) {
-    // get_status_from_firebase
-    if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
-      FirebaseJson &json = fbdo.jsonObject();
-      FirebaseJsonData lid_status;
-      if (json.get(lid_status, "lid_open")) {
-        lid_open = lid_status.intValue;
-        return lid_open ? true : false;
-      } else {
-        Serial.printf("Failed reading lid_status: %s\n", fbdo.errorReason().c_str());
-        return lid_open;
-      }
+    // Directly get integer value from Firebase
+    if (Firebase.RTDB.getInt(&fbdo, String(garden_global_info_path) + "/lid_open")) {
+      lid_open = fbdo.intData();
+      return lid_open;
     } else {
-      Serial.printf("Error getting garden_global_info_path: %s\n", fbdo.errorReason().c_str());
+      Serial.printf("Error getting lid_open: %s\n", fbdo.errorReason().c_str());
       return lid_open;
     }
-  } else { //no wifi connection / firebase disconnected
+  } else { // No Wi-Fi connection / Firebase disconnected
     return lid_open;
   }
 }
