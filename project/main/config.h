@@ -59,8 +59,8 @@
 // Orange --> D21
 #include <ESP32Servo.h>
 #define SERVO_PIN 21
-#define SERVO_LID_CLOSED 0
-#define SERVO_LID_OPEN 90
+#define SERVO_LID_CLOSED 150
+#define SERVO_LID_OPEN 30
 
 /* Connection layout:
  * yellow --> GRD

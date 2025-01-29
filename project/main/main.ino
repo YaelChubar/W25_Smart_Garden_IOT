@@ -35,20 +35,15 @@ void blinkTask(void *parameter) {
 
 // Wi-Fi setup task with timeout
 void initial_wifi_setup(void *parameter) {
+
+  wifiManager.setTimeout(10);  // Timeout in seconds for captive portal
+  wifiManager.setConnectTimeout(5); // Timeout for connecting to Wi-Fi
+  wifiManager.setConfigPortalTimeout(30); // Total timeout for config portal mode
+
   wifiManager.resetSettings();
   Serial.println("Starting Wi-Fi configuration portal...");
 
-  unsigned long startTime = millis();
-  const unsigned long timeout = 5 * 60 * 1000; // 5 minutes
-
   while (!wifi_connected) {
-    if (millis() - startTime > timeout) {
-      Serial.println("Wi-Fi setup timed out. Restarting...");
-      setColor(255, 0, 0); // Indicate failure with Red
-      delay(2000);
-      ESP.restart();
-    }
-
     if (wifiManager.startConfigPortal("SmartGarden-Setup")) {
       wifi_connected = true;
       Serial.println("Wi-Fi connected!");
@@ -74,7 +69,7 @@ void setup() {
 
   // Create the Wi-Fi setup task
   xTaskCreatePinnedToCore(initial_wifi_setup, "WiFiTask", 5000, NULL, 1, NULL, 1); 
-   
+
   // Create the blinking task
   xTaskCreatePinnedToCore(blinkTask, "BlinkTask", 1000, NULL, 1, &blinkTaskHandle, 0);
 
@@ -183,16 +178,19 @@ void loop() {
   // check wifi connection
   if (WiFi.status() == WL_CONNECTED) {
     wifi_connected = true;
+    // Turn indicator off
+    setColor(0,0,0);
   } else {
     wifi_connected = false;
+    // Turn red light indicator on
+    setColor(255,0,0);
   }
-  // TODO: set_wifi_light_indicator(bool wifi_connected);
 
-  if (Firebase.ready() && (millis() - readDataPrevMillis > 15000 || readDataPrevMillis == 0))
+  if ((millis() - readDataPrevMillis > 15000 || readDataPrevMillis == 0))
   {
     readDataPrevMillis = millis();
 
-    if (Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
+    if (Firebase.ready() && Firebase.RTDB.getJSON(&fbdo, garden_global_info_path)) {
       // per plant logic
       if (is_manual_mode()) {
         Serial.printf("Manual mode on\n");
@@ -208,7 +206,7 @@ void loop() {
             continue;
           }
           // check moisture and water if needed
-          if (millis() - uploadSensorDataPrevMillis[i-1] > 60000) {
+          if (millis() - uploadSensorDataPrevMillis[i-1] > 10000) {
             uploadSensorDataPrevMillis[i-1] = millis();
             int soil_measurement = measure_current_moisture(i);
             if (soil_measurement != -1 && get_normalized_water_level() >= WATER_LEVEL_THRESHOLD) {
@@ -225,11 +223,11 @@ void loop() {
       // both manual & auto
       upload_handshake();
       
-    } else { //get garden path failed
-      //TODO: add indication that garden was not found in firebase
-      // OPTIONAL: red light indicator on esp OR error indication in firebase
-      Serial.println("Error: Garden data not found in Firebase.");
-    }
+    //} else { //get garden path failed
+    //  //TODO: add indication that garden was not found in firebase
+    //  // OPTIONAL: red light indicator on esp OR error indication in firebase
+    //  Serial.println("Error: Garden data not found in Firebase.");
+    //}
 
 
 
@@ -279,7 +277,7 @@ void check_calibration_mode(int plant_id) {
   int moisture_pin = get_moisture_sensor_pin_by_id(plant_id);
   int moisture_sensor_reading = 0;
 
-  if (Firebase.RTDB.getJSON(&fbdo_calibration, plant_calibration_path)) {
+  if (wifi_connected && Firebase.RTDB.getJSON(&fbdo_calibration, plant_calibration_path)) {
     FirebaseJson &json = fbdo_calibration.jsonObject();
     FirebaseJsonData calibration_state;
     FirebaseJsonData moisture_calibration_dry;
@@ -387,11 +385,12 @@ bool is_plant_ready(int plant_id) {
   } else {
     // Handle errors (e.g., path doesn't exist or connection issues)
     Serial.printf("Error getting plant %d data: %s\n", plant_id, "");
-    existing_plants[plant_id - 1] = 0;
+    if (existing_plants[plant_id - 1]) {
+      return true;
+    } else {
+      return false;
+    }
   }
-  
-  Serial.println("Returning false, end of is_plant_ready func\n");
-  return false;
 }
 
 int get_dry_soil_measurement(int plant_id) {
@@ -408,6 +407,7 @@ int get_dry_soil_measurement(int plant_id) {
       if (json.get(dry_measurement, "dry_soil_measurement")) {
         Serial.print("dry_measurement: ");
         Serial.println(dry_measurement.intValue);
+        dry_soil_default[plant_id-1] = dry_measurement.intValue;
         return dry_measurement.intValue;
       } else {
         Serial.printf("Error getting plant %d dry_measurement: %s\n", plant_id, fbdo.errorReason().c_str());
@@ -438,6 +438,7 @@ int get_wet_soil_measurement(int plant_id) {
       if (json.get(wet_measurement, "wet_soil_measurement")) {
         Serial.print("wet_measurement: ");
         Serial.println(wet_measurement.intValue);
+        wet_soil_default[plant_id-1] = wet_measurement.intValue;
         return wet_measurement.intValue;
       } else {
         Serial.printf("Error getting plant %d wet_measurement: %s\n", plant_id, fbdo.errorReason().c_str());
@@ -557,7 +558,7 @@ void measure_DHT_values() {
   Serial.println(DHT.humidity);
 
   // check that path exists
-  if (Firebase.RTDB.getJSON(&fbdo_DHT, garden_global_info_path)) {
+  if (wifi_connected && Firebase.RTDB.getJSON(&fbdo_DHT, garden_global_info_path)) {
     FirebaseJson &json = fbdo_DHT.jsonObject();
     //upload data
     json.add("garden_humidity", DHT.humidity);
@@ -578,7 +579,7 @@ void measure_water_level_value() {
   Serial.printf("measure_water_level_value func\n");
 
   // check if path exists
-  if (Firebase.RTDB.getJSON(&fbdo_water_level, garden_global_info_path)) {
+  if (wifi_connected && Firebase.RTDB.getJSON(&fbdo_water_level, garden_global_info_path)) {
     FirebaseJson &json = fbdo_water_level.jsonObject();
     //upload data
     json.add("water_level", normalized_water_tank_read);
@@ -595,7 +596,7 @@ int measure_light_value() {
   int normalized_light_sensor_reading = calculatePercentage(light_sensor_reading, LIGHT_SENSOR_MIN_VALUE, LIGHT_SENSOR_MAX_VALUE);
 
     // check if path exists
-  if (Firebase.RTDB.getJSON(&fbdo_light, garden_global_info_path)) {
+  if (wifi_connected && Firebase.RTDB.getJSON(&fbdo_light, garden_global_info_path)) {
     FirebaseJson &json = fbdo_light.jsonObject();
     //upload data
     json.add("garden_light_strength", normalized_light_sensor_reading);
@@ -610,7 +611,7 @@ int measure_light_value() {
 
 void upload_handshake() {
   // check if path exists
-  if (Firebase.RTDB.getJSON(&fbdo_timestamp, garden_global_info_path)) {
+  if (wifi_connected && Firebase.RTDB.getJSON(&fbdo_timestamp, garden_global_info_path)) {
     FirebaseJson &json = fbdo_timestamp.jsonObject();
     //upload data
     json.add("timestamp_handshake", getCurrentDateTime());
@@ -878,7 +879,7 @@ bool is_manual_mode() {
 void update_lid_status(int lid_mode) {
   // check if path exists
   FirebaseData fbdo_lid;
-  if (Firebase.RTDB.getJSON(&fbdo_lid, garden_global_info_path)) {
+  if (wifi_connected && Firebase.RTDB.getJSON(&fbdo_lid, garden_global_info_path)) {
     FirebaseJson &json = fbdo_lid.jsonObject();
     //upload data
     json.add("lid_open", lid_mode);
