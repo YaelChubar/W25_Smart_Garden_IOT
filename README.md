@@ -18,7 +18,6 @@ The Smart Garden Project automates plant care with minimal manual intervention. 
 * Documentation: wiring diagram + calibration workflow diagram.
 * UnitTests: tests for individual hardware components (input / output devices)
 
-## Arduino/ESP32 libraries used in this project:
 ## Arduino/ESP libraries installed for the project:
 * WifiManager - version 2.0.17
 * Firebase_ESP_Client - version 4.4.15
