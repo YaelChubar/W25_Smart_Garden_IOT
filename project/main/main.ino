@@ -201,7 +201,7 @@ void loop() {
   // Check and handle WiFi connection
   handleWiFiConnection();
 
-  if ((millis() - readDataPrevMillis > 15000 || readDataPrevMillis == 0))
+  if ((millis() - readDataPrevMillis > 1000 || readDataPrevMillis == 0))
   {
     readDataPrevMillis = millis();
 
@@ -235,7 +235,6 @@ void loop() {
       
     // both manual & auto
     upload_handshake();
-
   }
 }
 
@@ -456,7 +455,7 @@ int get_wet_soil_measurement(int plant_id) {
 }
 
 int measure_current_moisture(int plant_id) {
-  String plant_moisture_sesnor_path = garden_path + "/plants/plant" + String(plant_id)+ "/moisture_sensor";
+  String plant_moisture_sensor_path = garden_path + "/plants/plant" + String(plant_id) + "/moisture_sensor";
   int moisture_pin = get_moisture_sensor_pin_by_id(plant_id);
   int moisture_sensor_reading = 0;
   int normalized_moisture_val = 0;
@@ -476,14 +475,11 @@ int measure_current_moisture(int plant_id) {
   Serial.print("normalized moisture_sensor_reading: ");
   Serial.println(normalized_moisture_val);
   
-  //Upload measured moisture val to Firebase
-  FirebaseJson json_normalized_moisture;
-  json_normalized_moisture.add(getCurrentDateTime(), normalized_moisture_val);
-  if (Firebase.RTDB.updateNode(&fbdo, plant_moisture_sesnor_path, &json_normalized_moisture)) {
-    Serial.println("Normalized_moisture_val pushed successfully:");
-    Serial.println(fbdo.pushName()); // The unique key for this entry
+  // Upload measured moisture value to Firebase (single value)
+  if (Firebase.RTDB.setInt(&fbdo, plant_moisture_sensor_path, normalized_moisture_val)) {
+    Serial.println("Normalized moisture value updated successfully.");
   } else {
-    Serial.printf("Failed to push Normalized_moisture_val: %s\n", fbdo.errorReason().c_str());
+    Serial.printf("Failed to update normalized moisture value: %s\n", fbdo.errorReason().c_str());
   }
 
   return normalized_moisture_val;
@@ -682,16 +678,15 @@ void plant_manual_pump(int plant_id) {
 }
 
 void upload_irrigation_time(int plant_id) {
-  //Upload irrigation time to Firebase
-  String plant_irrigation_time_path = garden_path + "/plants/plant" + String(plant_id)+ "/irrigation_time";
-  FirebaseJson json_irrigation_time;
+  // Upload irrigation time to Firebase (single value)
+  String plant_irrigation_time_path = garden_path + "/plants/plant" + String(plant_id) + "/irrigation_time";
   FirebaseData fbdo_irrigation;
-  json_irrigation_time.add(getCurrentDateTime(), 55);
-  if (Firebase.RTDB.updateNode(&fbdo_irrigation, plant_irrigation_time_path, &json_irrigation_time)) {
-    Serial.println("plant_irrigation_time pushed successfully:");
-    Serial.println(fbdo_irrigation.pushName()); // The unique key for this entry
+  int irrigation_time = 55; // Example irrigation time value
+
+  if (Firebase.RTDB.setInt(&fbdo_irrigation, plant_irrigation_time_path, irrigation_time)) {
+    Serial.println("Irrigation time updated successfully.");
   } else {
-    Serial.printf("Failed to push plant_irrigation_time_path: %s\n", fbdo_irrigation.errorReason().c_str());
+    Serial.printf("Failed to update irrigation time: %s\n", fbdo_irrigation.errorReason().c_str());
   }
 }
 
