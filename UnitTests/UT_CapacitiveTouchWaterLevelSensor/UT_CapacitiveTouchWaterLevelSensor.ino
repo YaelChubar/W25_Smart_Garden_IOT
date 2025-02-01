@@ -22,11 +22,10 @@ void setup() {
 // The water level sensor is built like a wire capacitore and act like a capacitive sensor
 void loop() {
   int waterTankReadRaw = touchRead(WATER_LEVEL_PIN);
-  int waterTankRead = calculatePercentage(waterTankReadRaw);
 
   Serial.print("Water tank level at: ");
-  Serial.print(waterTankRead);
-  Serial.println("%");
+  Serial.print(waterTankReadRaw);
+  Serial.print("\n");
 
-  delay(100);
+  delay(1000);
 }

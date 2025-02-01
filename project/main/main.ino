@@ -14,6 +14,7 @@ unsigned long uploadSensorDataPrevMillis[4] = {0};
 Servo myServo;
 DFRobot_DHT11 DHT;
 bool wifi_connected = false;
+bool water_tank_empty = false;
 Adafruit_NeoPixel pixels(NUMPIXELS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 
 // Task Handles
@@ -180,12 +181,16 @@ String getCurrentDateTime() {
 //handle WiFi reconnection
 void handleWiFiConnection() {
   // Check current WiFi status
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED && wifi_connected == false) {
     wifi_connected = true;
-    setColor(0, 0, 0); // Turn off indicator
-  } else {
+    if (!water_tank_empty) {
+      setColor(0, 0, 0); // Turn off indicator
+    }
+  } else if (WiFi.status() != WL_CONNECTED) {
     wifi_connected = false;
-    setColor(255, 0, 0); // Red indicator
+    if (!water_tank_empty) {
+      setColor(255, 0, 0); // Red indicator
+    }
 
     // Only attempt reconnection if enough time has passed since last attempt
     if (millis() - lastWiFiRetryMillis >= WIFI_RETRY_INTERVAL) {
@@ -229,11 +234,11 @@ void loop() {
         }
       }
       handle_lid_auto(measure_light_value());
-      measure_water_level_value();
       measure_DHT_values();
     }
       
     // both manual & auto
+    measure_water_level_value();
     upload_handshake();
   }
 }
@@ -565,11 +570,49 @@ void measure_DHT_values() {
 
 int get_normalized_water_level() {
   int water_tank_read_raw = touchRead(WATER_LEVEL_PIN);
-  int water_level_precentage = calculatePercentage(water_tank_read_raw, WATER_LEVEL_MIN_VALUE, WATER_LEVEL_MAX_VALUE);
+  water_tank_read_raw = constrain(water_tank_read_raw, 14, 22);
+  int water_level_precentage = 0;
   
-  if (water_level_precentage < WATER_LEVEL_THRESHOLD) {
+  switch (water_tank_read_raw) {
+    case 21:
+      water_level_precentage = 5;
+      break;
+    case 20:
+      water_level_precentage = 10;
+      break;
+    case 19:
+      water_level_precentage = 20;
+      break;
+    case 18:
+      water_level_precentage = 30;
+      break;
+    case 17:
+      water_level_precentage = 45;
+      break;
+    case 16:
+      water_level_precentage = 60;
+      break;
+    case 15:
+      water_level_precentage = 70;
+      break;
+    case 14:
+      water_level_precentage = 90;
+      break;
+    default:
+      water_level_precentage = 0;
+      break;
+  }
+  
+  if (water_level_precentage < WATER_LEVEL_THRESHOLD && !water_tank_empty) {
     // turn indicator yellow light on
-    setColor(252,218,0);
+    setColor(252,180,0);
+    water_tank_empty = true;
+  } else if (water_tank_empty && water_level_precentage >= WATER_LEVEL_THRESHOLD){
+    water_tank_empty = false;
+    if (wifi_connected) {
+      // turn indicator light off
+      setColor(0,0,0);
+    }
   }
 
   return water_level_precentage;
@@ -681,9 +724,9 @@ void upload_irrigation_time(int plant_id) {
   // Upload irrigation time to Firebase (single value)
   String plant_irrigation_time_path = garden_path + "/plants/plant" + String(plant_id) + "/irrigation_time";
   FirebaseData fbdo_irrigation;
-  int irrigation_time = 55; // Example irrigation time value
+  String current_time = getCurrentDateTime();
 
-  if (Firebase.RTDB.setInt(&fbdo_irrigation, plant_irrigation_time_path, irrigation_time)) {
+  if (Firebase.RTDB.setString(&fbdo_irrigation, plant_irrigation_time_path, current_time)) {
     Serial.println("Irrigation time updated successfully.");
   } else {
     Serial.printf("Failed to update irrigation time: %s\n", fbdo_irrigation.errorReason().c_str());
