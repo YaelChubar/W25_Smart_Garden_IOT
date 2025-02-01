@@ -38,10 +38,10 @@ The Smart Garden supports three modes of operation:
 - **DFRobot_DHT11** – Version 1.0.0
 
 ## Wiring Diagram
-![Wiring Diagram](Documentation/connection diagram/garden_circuts_diagram.png)
+![Wiring Diagram](Documentation/garden_circuts_diagram.png)
 
 ## Project Poster
-📌 *To be determined (TBD)*
+Will be added
 
 ## Acknowledgment
 This project is part of **ICST - The Interdisciplinary Center for Smart Technologies** at the **Taub Faculty of Computer Science, Technion**.
