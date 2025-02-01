@@ -1,34 +1,50 @@
-## Smart Garden Project by :  
-* Dolev Nissan 
-* Shahar Kadosh
-* Yael Chubar
-  
+# Smart Garden Project
+
+### By:
+- Dolev Nissan  
+- Shahar Kadosh  
+- Yael Chubar  
+
 ## Project Overview
 The Smart Garden Project automates plant care with minimal manual intervention. Using an ESP32-based system, it ensures optimal plant growth in just three simple steps:
 
-1️⃣ Set up your plant profiles – Define the needs of each plant.
+1️⃣ **Set up your plant profiles** – Define the needs of each plant.  
+2️⃣ **Calibrate the sensors** – Ensure accurate readings for soil moisture, temperature, and more.  
+3️⃣ **Monitor your garden** – Use a mobile app to track real-time data and system status.  
 
-2️⃣ Calibrate the sensors – Ensure accurate readings for soil moisture, temperature, and more.
+## Features
+The Smart Garden supports three modes of operation:
+- **Automatic Mode** – The system autonomously controls irrigation and monitoring based on sensor data.
+- **Manual Mode** – Users can manually control irrigation and other settings via the mobile app.
+- **Offline Mode** – The system continues to operate autonomously even without an internet connection.
 
-3️⃣ Monitor your garden – Use a mobile app to track real-time data and system status.
+### Key Features:
+- **Wi-Fi Enrollment using WifiManager** – Easily set up and connect the system to a Wi-Fi network.
+- **Moisture Sensor Calibration** – Ensures accurate soil moisture readings for efficient watering.
+- **Automatic Irrigation** – Watering is triggered based on real-time moisture levels.
+- **Cover to Prevent Direct Sun Exposure** – Protects sensitive components from overheating.
+- **Handshake Protocol for Android App Communication** – Enables reliable data exchange between the ESP32 and the mobile application.
+- **RGB Light Status Indicator** – Provides visual feedback on system status.
 
- 
-## Folder description :
-* project: source code for the esp side (firmware).
-* Documentation: wiring diagram + calibration workflow diagram.
-* UnitTests: tests for individual hardware components (input / output devices)
+## Folder Description
+- **project/** – Source code for the ESP32 firmware.
+- **Documentation/** – Wiring diagram + calibration workflow diagram.
+- **UnitTests/** – Tests for individual hardware components (input/output devices).
 
-## Arduino/ESP libraries installed for the project:
-* WifiManager - version 2.0.17
-* Firebase_ESP_Client - version 4.4.15
-* Adafruit NeoPixel - version 1.12.0
-* DFRobot_DHT11 - version 1.0.0
+## Arduino/ESP Libraries Installed for the Project
+- **WifiManager** – Version 2.0.17
+- **Firebase_ESP_Client** – Version 4.4.15
+- **Adafruit NeoPixel** – Version 1.12.0
+- **DFRobot_DHT11** – Version 1.0.0
 
-## Wiring diagram: 
-TBD
+## Wiring Diagram
+![Wiring Diagram](Documentation/connection diagram/garden_circuts_diagram.png)
 
-## Project Poster:
-TBD
- 
-This project is part of ICST - The Interdisciplinary Center for Smart Technologies, Taub Faculty of Computer Science, Technion
-https://icst.cs.technion.ac.il/
+## Project Poster
+📌 *To be determined (TBD)*
+
+## Acknowledgment
+This project is part of **ICST - The Interdisciplinary Center for Smart Technologies** at the **Taub Faculty of Computer Science, Technion**.
+
+🔗 [ICST Website](https://icst.cs.technion.ac.il/)
+
