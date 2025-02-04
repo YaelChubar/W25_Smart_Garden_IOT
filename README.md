@@ -33,6 +33,20 @@ The Smart Garden supports three modes of operation:
 - **Documentation/** – Wiring diagram + calibration workflow diagram.
 - **UnitTests/** – Tests for individual hardware components (input/output devices).
 
+## Hardware Requirements
+- **ESP32** - devkit V1
+- **4 Capacitive soil moisture sensor** - v2.0
+- **DHT11 temperature / humisity sensor**
+- **Light sensor**
+- **RGB indicator LED**
+- **4-channel mosfet board** (for water pumps)
+- **4 water pumps**
+- **USB power source**
+- **Led strip**
+- **servo motor MG995**
+- **Capacitive water level sensor**
+
+
 ## Arduino/ESP Libraries Installed for the Project
 - **WifiManager** – Version 2.0.17
 - **Firebase_ESP_Client** – Version 4.4.15
