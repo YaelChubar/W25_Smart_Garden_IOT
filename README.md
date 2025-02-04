@@ -8,8 +8,8 @@
 ## Project Overview
 The Smart Garden Project automates plant care with minimal manual intervention. Using an ESP32-based system, it ensures optimal plant growth in just three simple steps:
 
-1️⃣ **Set up your plant profiles** – Define the needs of each plant.  
-2️⃣ **Calibrate the sensors** – Ensure accurate readings for soil moisture, temperature, and more.  
+1️⃣ **Set up your plant profiles** – Specify the requirements of each plant, such as the ideal soil moisture level and whether it needs direct sunlight.
+2️⃣ **Calibrate the sensors** – Make sure soil moisture readings are accurate.
 3️⃣ **Monitor your garden** – Use a mobile app to track real-time data and system status.  
 
 ## Features
